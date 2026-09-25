@@ -555,5 +555,18 @@ tomadas ou novas etapas forem concluídas.
 
 ------------------------------------------------------------------------
 
-**Checkpoint:** Administradoras e vínculos históricos implementados no painel/API; 28 testes aprovados e PostgreSQL validado; aguardando teste do usuário\
+**Checkpoint:** Consultas CNPJ/CEP padronizadas; 29 testes aprovados; Git inicializado e código publicado no GitHub\
 **Data:** 25/09/2026
+
+
+### Publicação no GitHub confirmada (25/09/2026)
+
+Primeiro commit `fcc35b3` enviado com sucesso para origin/main no repositório
+https://github.com/DanielTabosa/manutec_clientes . O histórico Git começa
+neste ponto; não existiam commits das etapas anteriores. Este commit inclui
+as etapas anteriores e a correção das consultas de CNPJ.
+
+Consulta real de administradora conferida no navegador com CNPJ público:
+razão social, nome fantasia e telefone preenchidos, endereço exibido;
+nenhum cadastro de teste persistido. Seguir fazendo commits por etapa
+concluída. Dados PostgreSQL permanecem locais; GitHub não é backup do banco.
