@@ -1,0 +1,5 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+{% block extrahead %}{{ block.super }}
+<script id="consulta-cnpj-script" src="{% static 'clientes/cadastro.js' %}" data-url="{% url 'admin:clientes_administradora_consultar_cnpj' %}" defer></script>
+{% endblock %}

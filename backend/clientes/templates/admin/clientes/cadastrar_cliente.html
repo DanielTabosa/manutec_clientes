@@ -1,0 +1,26 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
+{% block content %}
+<form method="post" id="cadastro-cliente" data-consulta-url="{% url 'admin:clientes_consultar_cnpj' %}">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <fieldset class="module aligned">
+    {% for field in form %}
+    <div class="form-row">
+      {{ field.errors }}
+      <div>{{ field.label_tag }} {{ field }}</div>
+      {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+      {% if field.name == 'cnpj' %}
+        <button type="button" id="consultar-cnpj">Consultar novamente</button>
+        <p id="consulta-status" role="status" aria-live="polite"></p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </fieldset>
+  <p>Confira os dados retornados pela BrasilAPI. Você pode corrigir ou completar os campos antes de salvar.</p>
+  <div class="submit-row"><input type="submit" value="Salvar cliente" class="default"></div>
+</form>
+<script src="{% static 'clientes/cadastro.js' %}" defer></script>
+<script id="consulta-cep-script" src="{% static 'clientes/cep.js' %}" data-url="{% url 'admin:clientes_consultar_cep' %}" defer></script>
+{% endblock %}

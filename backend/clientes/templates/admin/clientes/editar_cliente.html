@@ -1,0 +1,5 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+{% block extrahead %}{{ block.super }}
+<script id="consulta-cep-script" src="{% static 'clientes/cep.js' %}" data-url="{% url 'admin:clientes_consultar_cep' %}" defer></script>
+{% endblock %}

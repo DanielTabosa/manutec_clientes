@@ -1,0 +1,13 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Cliente: <strong>{{ original }}</strong></p>
+<p>Administradora atual: <strong>{{ atual.administradora|default:"Nenhuma" }}</strong></p>
+<p>Ao trocar, o vínculo anterior termina no dia anterior ao início do novo.
+Ao encerrar, o cliente fica sem administradora atual. O histórico será mantido.</p>
+<p>Cadastre primeiro a empresa no menu Administradoras, caso ela ainda não exista.</p>
+<form method="post">{% csrf_token %}
+  {{ form.as_p }}
+  <input type="submit" value="Salvar vínculo">
+  <a href="{% url 'admin:clientes_cliente_change' original.pk %}">Cancelar</a>
+</form>
+{% endblock %}

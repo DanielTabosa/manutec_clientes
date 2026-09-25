@@ -1,0 +1,260 @@
+from django.contrib import admin
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import Http404, JsonResponse
+from django.shortcuts import redirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
+from django.utils.html import format_html
+from .models import Cliente, HistoricoCNPJ, Contato
+from .forms import TrocaCNPJForm, CadastroClienteForm, ClienteEnderecoForm
+from .services import trocar_cnpj, cadastrar_cliente
+from .consulta import consultar_cnpj, consultar_cep, ErroConsulta
+from .models import Administradora, ClienteAdministradora
+from .forms import AdministradoraForm, VinculoAdministradoraForm
+from .services import alterar_administradora
+
+
+class HistoricoAdministradoraInline(admin.TabularInline):
+    model = ClienteAdministradora
+    fields = ["administradora", "data_inicio", "data_fim"]
+    readonly_fields = fields
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm("clientes.view_cliente")
+
+
+@admin.register(Administradora)
+class AdministradoraAdmin(admin.ModelAdmin):
+    form = AdministradoraForm
+    change_form_template = "admin/clientes/editar_administradora.html"
+    list_display = ["razao_social", "nome_fantasia", "cnpj", "telefone", "email"]
+    search_fields = ["razao_social", "nome_fantasia", "cnpj"]
+    readonly_fields = ["criado_em", "atualizado_em"]
+
+    def get_urls(self):
+        return [path("consultar-cnpj/", self.admin_site.admin_view(self.consulta_cnpj_view), name="clientes_administradora_consultar_cnpj")] + super().get_urls()
+
+    def consulta_cnpj_view(self, request):
+        if not (self.has_add_permission(request) or self.has_change_permission(request)):
+            raise PermissionDenied
+        try:
+            return JsonResponse(consultar_cnpj(request.GET.get("cnpj", "")))
+        except ValidationError as exc:
+            return JsonResponse({"erro": " ".join(exc.messages)}, status=400)
+        except ErroConsulta as exc:
+            return JsonResponse({"erro": str(exc)}, status=503)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class HistoricoCNPJInline(admin.TabularInline):
+    model = HistoricoCNPJ
+    fields = ["cnpj", "data_inicio", "data_fim"]
+    readonly_fields = fields
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm("clientes.view_cliente")
+
+
+class ContatoInline(admin.TabularInline):
+    model = Contato
+    fields = ["nome", "funcao", "telefone", "email", "data_inicio", "data_fim"]
+    readonly_fields = fields
+    show_change_link = True
+    can_delete = False
+    extra = 0
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class VigenciaContatoFilter(admin.SimpleListFilter):
+    title = "vigência"
+    parameter_name = "vigente"
+
+    def lookups(self, request, model_admin):
+        return [("true", "Atuais"), ("false", "Encerrados")]
+
+    def queryset(self, request, queryset):
+        if self.value() in ("true", "false"):
+            return queryset.filter(data_fim__isnull=self.value() == "true")
+        return queryset
+
+
+@admin.register(Contato)
+class ContatoAdmin(admin.ModelAdmin):
+    fields = ["cliente", "nome", "funcao", "telefone", "email", "data_inicio", "data_fim"]
+    list_display = ["nome", "funcao", "cliente", "telefone", "email", "data_inicio", "data_fim", "vigente"]
+    list_filter = [VigenciaContatoFilter]
+    search_fields = ["nome", "funcao", "cliente__razao_social"]
+    list_select_related = ["cliente"]
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if "cliente" in form.base_fields:
+            # O cadastro de cliente tem fluxo próprio, fora do popup do Django.
+            form.base_fields["cliente"].widget.can_add_related = False
+        return form
+
+    @admin.display(boolean=True, description="Vigente")
+    def vigente(self, obj):
+        return obj.data_fim is None
+
+    def get_readonly_fields(self, request, obj=None):
+        return ["cliente"] if obj else []
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Cliente)
+class ClienteAdmin(admin.ModelAdmin):
+    form = ClienteEnderecoForm
+    change_form_template = "admin/clientes/editar_cliente.html"
+    fields = ["gerenciar_cnpj", "razao_social", "nome_fantasia", "cep", "logradouro", "numero", "complemento",
+              "bairro", "cidade", "estado", "observacoes", "gerenciar_contatos", "gerenciar_administradora", "id", "criado_em", "atualizado_em"]
+    list_display = ["id", "razao_social", "nome_fantasia", "cidade", "estado"]
+    search_fields = ["razao_social", "nome_fantasia", "cidade"]
+    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_cnpj", "gerenciar_contatos", "gerenciar_administradora"]
+    inlines = [HistoricoCNPJInline, ContatoInline, HistoricoAdministradoraInline]
+
+    @admin.display(description="Administradora")
+    def gerenciar_administradora(self, obj):
+        if not obj or not obj.pk:
+            return "Salve o cliente primeiro."
+        atual = obj.historico_administradoras.filter(data_fim__isnull=True).select_related("administradora").first()
+        return format_html('{} · <a href="{}">Vincular, trocar ou encerrar</a>',
+            str(atual.administradora) if atual else "Sem administradora atual",
+            reverse("admin:clientes_cliente_administradora", args=[obj.pk]))
+
+    def administradora_view(self, request, cliente_id):
+        obj = self.get_object(request, cliente_id)
+        if obj is None:
+            raise Http404
+        if not self.has_change_permission(request, obj) or not request.user.has_perm("clientes.view_administradora"):
+            raise PermissionDenied
+        form = VinculoAdministradoraForm(request.POST if request.method == "POST" else None)
+        if request.method == "POST" and form.is_valid():
+            try:
+                alterar_administradora(obj.pk, **form.cleaned_data)
+            except ValidationError as exc:
+                for field, errors in exc.message_dict.items():
+                    for error in errors:
+                        form.add_error(field, error)
+            else:
+                self.log_change(request, obj, "Vínculo de administradora: " + form.cleaned_data["acao"])
+                self.message_user(request, "Vínculo atualizado. O histórico foi preservado.")
+                return redirect("admin:clientes_cliente_change", obj.pk)
+        atual = obj.historico_administradoras.filter(data_fim__isnull=True).select_related("administradora").first()
+        return TemplateResponse(request, "admin/clientes/administradora.html", {
+            **self.admin_site.each_context(request), "title": "Administradora do cliente",
+            "opts": self.model._meta, "original": obj, "form": form, "atual": atual,
+        })
+
+    @admin.display(description="Contatos do condomínio")
+    def gerenciar_contatos(self, obj):
+        if not obj or not obj.pk:
+            return "Salve o cliente para cadastrar contatos."
+        return format_html('<a href="{}?cliente={}">Adicionar contato</a> · <a href="{}?cliente__id__exact={}">Consultar contatos e histórico</a>',
+                           reverse("admin:clientes_contato_add"), obj.pk,
+                           reverse("admin:clientes_contato_changelist"), obj.pk)
+
+    @admin.display(description="CNPJ")
+    def gerenciar_cnpj(self, obj):
+        if not obj or not obj.pk:
+            return "Salve o cliente para cadastrar o CNPJ."
+        return format_html('<a href="{}">Cadastrar / trocar CNPJ</a>', reverse("admin:clientes_cliente_cnpj", args=[obj.pk]))
+
+    def get_urls(self):
+        return [path("consultar-cnpj/", self.admin_site.admin_view(self.consulta_view), name="clientes_consultar_cnpj"),
+                path("<int:cliente_id>/administradora/", self.admin_site.admin_view(self.administradora_view), name="clientes_cliente_administradora"),
+                path("consultar-cep/", self.admin_site.admin_view(self.consulta_cep_view), name="clientes_consultar_cep"),
+                path("<int:cliente_id>/cnpj/", self.admin_site.admin_view(self.cnpj_view), name="clientes_cliente_cnpj")] + super().get_urls()
+
+    def consulta_cep_view(self, request):
+        if not (self.has_add_permission(request) or self.has_change_permission(request)):
+            raise PermissionDenied
+        try:
+            return JsonResponse(consultar_cep(request.GET.get("cep", "")))
+        except ValidationError as exc:
+            return JsonResponse({"erro": " ".join(exc.messages)}, status=400)
+        except ErroConsulta as exc:
+            return JsonResponse({"erro": str(exc)}, status=503)
+
+    def consulta_view(self, request):
+        if not (self.has_add_permission(request) or self.has_change_permission(request)):
+            raise PermissionDenied
+        try:
+            return JsonResponse(consultar_cnpj(request.GET.get("cnpj", "")))
+        except ValidationError as exc:
+            return JsonResponse({"erro": " ".join(exc.messages)}, status=400)
+        except ErroConsulta as exc:
+            return JsonResponse({"erro": str(exc)}, status=503)
+
+    def add_view(self, request, form_url="", extra_context=None):
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+        form = CadastroClienteForm(request.POST if request.method == "POST" else None)
+        if request.method == "POST" and form.is_valid():
+            try:
+                obj = cadastrar_cliente(**form.cleaned_data)
+            except ValidationError as exc:
+                if hasattr(exc, "message_dict"):
+                    for field, errors in exc.message_dict.items():
+                        for error in errors:
+                            form.add_error(field if field in form.fields else None, error)
+                else:
+                    form.add_error("cnpj", exc)
+            else:
+                self.log_addition(request, obj, "Cliente e CNPJ cadastrados juntos.")
+                self.message_user(request, "Cliente cadastrado com CNPJ e endereço.")
+                return redirect("admin:clientes_cliente_changelist")
+        return TemplateResponse(request, "admin/clientes/cadastrar_cliente.html", {
+            **self.admin_site.each_context(request), "title": "Cadastrar cliente",
+            "opts": self.model._meta, "form": form,
+        })
+
+    def cnpj_view(self, request, cliente_id):
+        obj = self.get_object(request, cliente_id)
+        if obj is None:
+            raise Http404
+        if not self.has_change_permission(request, obj):
+            raise PermissionDenied
+        form = TrocaCNPJForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            try:
+                trocar_cnpj(obj.pk, **form.cleaned_data)
+            except ValidationError as exc:
+                for field, errors in exc.message_dict.items():
+                    for error in errors:
+                        form.add_error(field, error)
+            else:
+                self.message_user(request, "CNPJ registrado. O histórico anterior foi preservado.")
+                return redirect("admin:clientes_cliente_change", obj.pk)
+        return TemplateResponse(request, "admin/clientes/trocar_cnpj.html", {
+            **self.admin_site.each_context(request), "title": "Cadastrar / trocar CNPJ",
+            "opts": self.model._meta, "original": obj, "form": form,
+        })
+
+    def has_delete_permission(self, request, obj=None):
+        return False

@@ -1,0 +1,14 @@
+.venv/
+.env
+__pycache__/
+*.py[cod]
+*.sqlite3
+.pytest_cache/
+
+.env.*
+!.env.example
+*.log
+*.dump
+*.backup
+*.pem
+*.key
