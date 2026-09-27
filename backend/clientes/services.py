@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import Cliente, HistoricoCNPJ, Administradora, ClienteAdministradora
+from .models import Cliente, HistoricoCNPJ, Administradora, ClienteAdministradora, Responsabilidade
 from .cnpj import normalizar_cnpj
 
 ENDERECO_OBRIGATORIO = ("logradouro", "numero", "bairro", "cidade", "estado", "cep")
@@ -26,6 +26,7 @@ def alterar_administradora(cliente_id, *, acao, data, administradora=None):
                     raise ValidationError({"acao": "Este cliente não possui administradora atual."})
                 if data < atual.data_inicio:
                     raise ValidationError({"data": "O encerramento não pode ser anterior ao início."})
+                encerrar_responsabilidades(atual, data)
                 atual.data_fim = data
                 atual.save(update_fields=["data_fim"])
                 resultado = atual
@@ -38,9 +39,12 @@ def alterar_administradora(cliente_id, *, acao, data, administradora=None):
                 if ultimo and data <= (ultimo.data_fim or ultimo.data_inicio):
                     raise ValidationError({"data": "Use uma data posterior ao último período registrado."})
                 if atual:
+                    encerrar_responsabilidades(atual, data - timedelta(days=1))
                     atual.data_fim = data - timedelta(days=1)
                     atual.save(update_fields=["data_fim"])
                 resultado = ClienteAdministradora.objects.create(cliente=cliente, administradora=administradora, data_inicio=data)
+            from .destinatarios import registrar_troca
+            registrar_troca(cliente_id)
             cliente.save(update_fields=["atualizado_em"])
             return resultado
     except IntegrityError as exc:
@@ -83,3 +87,15 @@ def trocar_cnpj(cliente_id, cnpj, data_inicio):
             return novo
     except IntegrityError as exc:
         raise ValidationError({"cnpj": "Não foi possível registrar: CNPJ ou vínculo atual já existente. Atualize a página."}) from exc
+
+
+def encerrar_responsabilidades(vinculo, data):
+    """Chamado sob transação e bloqueio do cliente por alterar_administradora."""
+    registros = Responsabilidade.objects.filter(
+        cliente_id=vinculo.cliente_id,
+        contato_administradora__administradora_id=vinculo.administradora_id,
+    )
+    # Períodos antigos permanecem intocados; não truncar históricos encerrados.
+    if registros.filter(data_inicio__lte=data, data_fim__gt=data).exists() or registros.filter(data_inicio__gt=data).exists():
+        raise ValidationError({"data": "A data deixaria responsabilidades fora do vínculo da administradora."})
+    registros.filter(data_fim__isnull=True).update(data_fim=data)

@@ -4,7 +4,9 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .services import trocar_cnpj
+from .serializers import ContatoAdministradoraSerializer, ResponsabilidadeSerializer
 from .serializers import HistoricoCNPJSerializer, TrocaCNPJSerializer
+from .models import ContatoAdministradora, Responsabilidade
 from .models import Cliente, Contato
 from .serializers import ClienteSerializer, ContatoSerializer
 from .models import Administradora
@@ -97,3 +99,45 @@ class AdministradoraViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
 
     perform_create = salvar
     perform_update = salvar
+
+
+class ContatoAdministradoraViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                                  mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+                                  viewsets.GenericViewSet):
+    queryset = ContatoAdministradora.objects.select_related("administradora")
+    serializer_class = ContatoAdministradoraSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["nome", "administradora__razao_social"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        valor = self.request.query_params.get("administradora")
+        if valor is not None:
+            if not valor.isascii() or not valor.isdigit() or len(valor) > 18:
+                raise ValidationError({"administradora": "Informe um ID numérico."})
+            qs = qs.filter(administradora_id=int(valor))
+        return qs
+
+
+class ResponsabilidadeViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                              mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+                              viewsets.GenericViewSet):
+    queryset = Responsabilidade.objects.select_related("cliente", "contato_administradora__administradora")
+    serializer_class = ResponsabilidadeSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["funcao", "contato_administradora__nome", "cliente__razao_social"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        for campo in ("cliente", "contato_administradora"):
+            valor = self.request.query_params.get(campo)
+            if valor is not None:
+                if not valor.isascii() or not valor.isdigit() or len(valor) > 18:
+                    raise ValidationError({campo: "Informe um ID numérico."})
+                qs = qs.filter(**{campo + "_id": int(valor)})
+        vigente = self.request.query_params.get("vigente")
+        if vigente is not None:
+            if vigente not in ("true", "false"):
+                raise ValidationError({"vigente": "Use true ou false."})
+            qs = qs.filter(data_fim__isnull=vigente == "true")
+        return qs

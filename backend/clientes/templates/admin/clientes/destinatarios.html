@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Selecione os documentos e mensagens de cada contato. Salvar aplica imediatamente e mantém o histórico.</p>
+{% if alcance != None %}<p>Este padrão é usado por {{ alcance }} condomínio(s).</p>{% endif %}
+{% if erro %}<p class="errornote">{{ erro }}</p>{% endif %}
+<form method="post">{% csrf_token %}
+{{ form.as_p }} {{ formset.management_form }} {{ formset.non_form_errors }}
+<table><thead><tr><th>Contato</th><th>Boleto</th><th>Nota fiscal</th><th>Laudo</th><th>Comunicado</th><th>Cobrança</th><th>Encerramento local</th></tr></thead><tbody>
+{% for f, contato, empresa in linhas %}<tr><td>{{ f.contato_id }}{{ f.contato_administradora_id }}{{ contato.nome|default:"Contato indisponível" }}<br>{{ contato.email|default:"Sem e-mail" }} · {{ contato.telefone|default:"Sem telefone" }}{{ f.errors }}</td><td>{{ f.boleto }}</td><td>{{ f.nota_fiscal }}</td><td>{{ f.laudo }}</td><td>{{ f.comunicado }}</td><td>{{ f.cobranca }}</td><td>{% if empresa and escopo == 'cliente' %}{{ f.encerrado_local }} Todas as categorias{% endif %}</td></tr>{% empty %}<tr><td colspan="7">Nenhum contato disponível. Cadastre um contato para selecionar destinatários.</td></tr>{% endfor %}
+</tbody></table>
+{% if pode_editar %}<p><input type="submit" value="Salvar destinatários"></p>{% endif %}
+</form>
+{% if escopo == 'cliente' %}
+<h2>Padrão da administradora (consulta)</h2><p>Para alterar o padrão, acesse os destinatários no cadastro da administradora. Contatos específicos exigem o modo complementar ou substituir.</p>
+<ul>{% for item in herdados %}<li>{{ item.contato_administradora.nome }}{% if item.contato_administradora.encerrado_em %} — encerrado{% endif %}: {% if item.boleto %}boleto; {% endif %}{% if item.nota_fiscal %}nota fiscal; {% endif %}{% if item.laudo %}laudo; {% endif %}{% if item.comunicado %}comunicado; {% endif %}{% if item.cobranca %}cobrança{% endif %}</li>{% empty %}<li>Sem padrão cadastrado.</li>{% endfor %}</ul>
+<h2>Destinatários efetivos</h2><ul>{% for item in efetivos %}<li>{{ item.nome }} — {{ item.categorias|join:", " }} ({{ item.origens|join:", " }})</li>{% empty %}<li>Nenhum destinatário efetivo.</li>{% endfor %}</ul>
+{% endif %}
+<h2>Histórico de configurações e padrões das administradoras vinculadas</h2>
+{% for r in revisoes %}<details><summary>{% if r.configuracao.administradora_id %}Padrão de {{ r.configuracao.administradora }} · {% endif %}Revisão {{ r.numero }} · {{ r.registrado_em }} · {{ r.motivo }} · {{ r.get_modo_display }}</summary><ul>{% for i in r.itens.all %}<li>{{ i.contato.nome }}{{ i.contato_administradora.nome }}: {% if i.encerrado_local %}encerrado neste condomínio{% else %}{% if i.boleto %}boleto; {% endif %}{% if i.nota_fiscal %}nota fiscal; {% endif %}{% if i.laudo %}laudo; {% endif %}{% if i.comunicado %}comunicado; {% endif %}{% if i.cobranca %}cobrança{% endif %}{% endif %}</li>{% empty %}<li>Sem destinatários configurados.</li>{% endfor %}</ul></details>{% empty %}<p>Nenhuma alteração registrada.</p>{% endfor %}
+<p>Página {{ revisoes.number }} de {{ revisoes.paginator.num_pages }}. {% if revisoes.has_previous %}<a href="?pagina={{ revisoes.previous_page_number }}">Anterior</a>{% endif %} {% if revisoes.has_next %}<a href="?pagina={{ revisoes.next_page_number }}">Próxima</a>{% endif %}</p>
+<p>As revisões dos padrões são registros da empresa; sua presença não significa que o condomínio utilizava aquele padrão naquele momento.</p>
+<h2>Encerramentos globais — últimos 25</h2><ul>{% for c in encerramentos %}<li>{{ c.nome }} — {{ c.encerrado_em }}</li>{% empty %}<li>Nenhum encerramento global registrado para os contatos deste histórico.</li>{% endfor %}</ul>
+{% endblock %}

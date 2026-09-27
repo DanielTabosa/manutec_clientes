@@ -82,6 +82,17 @@ class Contato(models.Model):
         if self.data_inicio and self.data_fim and self.data_fim < self.data_inicio:
             raise ValidationError({"data_fim": "O encerramento não pode ser anterior ao início."})
 
+    def save(self, *args, **kwargs):
+        from django.db import transaction
+        with transaction.atomic():
+            Cliente.objects.select_for_update().get(pk=self.cliente_id)
+            anterior = type(self).objects.filter(pk=self.pk).first() if self.pk else None
+            resultado = super().save(*args, **kwargs)
+            if anterior and anterior.data_fim is None and self.data_fim is not None:
+                from .destinatarios import registrar_encerramento_direto
+                registrar_encerramento_direto(self)
+            return resultado
+
     def __str__(self):
         return self.nome
 
@@ -138,3 +149,119 @@ class ClienteAdministradora(models.Model):
 
     def __str__(self):
         return str(self.administradora)
+
+
+class ContatoAdministradora(models.Model):
+    encerrado_em = models.DateTimeField(null=True, blank=True, editable=False)
+    id = models.BigAutoField(primary_key=True)
+    administradora = models.ForeignKey(Administradora, on_delete=models.PROTECT, related_name="contatos")
+    nome = models.CharField(max_length=150)
+    telefone = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(max_length=150, blank=True, null=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = "contatos_administradora"
+        ordering = ["nome", "id"]
+        verbose_name = "contato de administradora"
+        verbose_name_plural = "contatos de administradoras"
+
+    def clean(self):
+        super().clean()
+        self.nome = (self.nome or "").strip()
+        if not self.nome:
+            raise ValidationError({"nome": "Informe o nome."})
+        anterior = type(self).objects.filter(pk=self.pk).first() if self.pk else None
+        if anterior and anterior.administradora_id != self.administradora_id:
+            raise ValidationError({"administradora": "Não transfira o contato. Cadastre outro na nova empresa."})
+
+    def save(self, *args, **kwargs):
+        from django.db import transaction
+        with transaction.atomic():
+            Administradora.objects.select_for_update().get(pk=self.administradora_id)
+            anterior = type(self).objects.filter(pk=self.pk).first() if self.pk else None
+            if anterior and 'encerrado_em' not in (kwargs.get('update_fields') or ()):
+                self.encerrado_em = anterior.encerrado_em
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.nome} — {self.administradora}"
+
+
+class Responsabilidade(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    contato_administradora = models.ForeignKey(ContatoAdministradora, on_delete=models.PROTECT, related_name="responsabilidades")
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="responsabilidades")
+    funcao = models.CharField("função", max_length=100)
+    data_inicio = models.DateField("data de início")
+    data_fim = models.DateField("data de encerramento", blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "responsabilidades"
+        ordering = ["-data_inicio", "-id"]
+        verbose_name = "responsabilidade"
+        verbose_name_plural = "responsabilidades"
+        constraints = [models.CheckConstraint(
+            condition=models.Q(data_fim__isnull=True) | models.Q(data_fim__gte=models.F("data_inicio")),
+            name="chk_responsabilidade_datas")]
+
+    def clean(self):
+        from django.db import connection
+        from django.utils import timezone
+        super().clean()
+        # O admin valida dentro de uma transação: mantém o bloqueio até salvar.
+        if self.cliente_id and connection.in_atomic_block:
+            Cliente.objects.select_for_update().filter(pk=self.cliente_id).first()
+        self.funcao = (self.funcao or "").strip()
+        if not self.funcao:
+            raise ValidationError({"funcao": "Informe a função."})
+        anterior = type(self).objects.filter(pk=self.pk).first() if self.pk else None
+        if anterior:
+            for campo in ("cliente", "contato_administradora"):
+                if getattr(anterior, campo + "_id") != getattr(self, campo + "_id"):
+                    raise ValidationError({campo: "Não substitua o vínculo salvo. Encerre e cadastre outro."})
+        hoje = timezone.now().date()
+        for campo in ("data_inicio", "data_fim"):
+            valor = getattr(self, campo)
+            if valor and valor > hoje:
+                raise ValidationError({campo: "A data não pode estar no futuro."})
+        if not self.data_inicio or not self.cliente_id or not self.contato_administradora_id:
+            return
+        if self.data_fim and self.data_fim < self.data_inicio:
+            raise ValidationError({"data_fim": "O encerramento não pode ser anterior ao início."})
+        contato = ContatoAdministradora.objects.filter(pk=self.contato_administradora_id).first()
+        if not contato:
+            return  # clean_fields informa FK inválida.
+        vinculos = ClienteAdministradora.objects.filter(
+            cliente_id=self.cliente_id, administradora_id=contato.administradora_id,
+            data_inicio__lte=self.data_inicio)
+        if self.data_fim is None:
+            vinculos = vinculos.filter(data_fim__isnull=True)
+        else:
+            vinculos = vinculos.filter(models.Q(data_fim__isnull=True) | models.Q(data_fim__gte=self.data_fim))
+        if not vinculos.exists():
+            raise ValidationError({"data_inicio": "O período deve estar contido em um vínculo do cliente com a administradora do contato."})
+        sobrepostos = type(self).objects.filter(
+            cliente_id=self.cliente_id, contato_administradora_id=self.contato_administradora_id,
+        ).exclude(pk=self.pk).filter(models.Q(data_fim__isnull=True) | models.Q(data_fim__gte=self.data_inicio))
+        if self.data_fim:
+            sobrepostos = sobrepostos.filter(data_inicio__lte=self.data_fim)
+        if any(f.strip().casefold() == self.funcao.casefold() for f in sobrepostos.values_list("funcao", flat=True)):
+            raise ValidationError({"funcao": "Já existe responsabilidade desta pessoa, cliente e função em período sobreposto."})
+
+    def save(self, *args, **kwargs):
+        from django.db import transaction
+        with transaction.atomic():
+            if self.cliente_id:
+                Cliente.objects.select_for_update().get(pk=self.cliente_id)
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.contato_administradora.nome} — {self.cliente} — {self.funcao}"
+
+
+from .destinatarios_models import ConfiguracaoDestinatarios, RevisaoDestinatarios, ItemDestinatario  # noqa: E402,F401

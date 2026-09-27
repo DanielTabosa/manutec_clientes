@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .models import ContatoAdministradora, Responsabilidade
 from .models import Cliente, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora
 from .cnpj import normalizar_cnpj
 from .services import cadastrar_cliente, ENDERECO_OBRIGATORIO
@@ -112,3 +113,50 @@ class ClienteSerializer(serializers.ModelSerializer):
             "criado_em", "atualizado_em", "data_inicio",
         ]
         read_only_fields = ["id", "criado_em", "atualizado_em"]
+
+
+class ContatoAdministradoraSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContatoAdministradora
+        fields = ["id", "administradora", "nome", "telefone", "email", "criado_em", "encerrado_em"]
+        read_only_fields = ["id", "criado_em", "encerrado_em"]
+
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+    def update(self, instance, validated_data):
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+
+class ResponsabilidadeSerializer(serializers.ModelSerializer):
+    vigente = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Responsabilidade
+        fields = ["id", "contato_administradora", "cliente", "funcao", "data_inicio", "data_fim", "vigente"]
+        read_only_fields = ["id", "vigente"]
+
+    def get_vigente(self, obj):
+        return obj.data_fim is None
+
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+    def update(self, instance, validated_data):
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                Cliente.objects.select_for_update().get(pk=instance.cliente_id)
+                instance.refresh_from_db()
+                return super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc

@@ -1,3 +1,4 @@
+from .destinatarios_admin import DestinatariosAdminMixin
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404, JsonResponse
@@ -5,6 +6,7 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
+from .models import ContatoAdministradora, Responsabilidade
 from .models import Cliente, HistoricoCNPJ, Contato
 from .forms import TrocaCNPJForm, CadastroClienteForm, ClienteEnderecoForm
 from .services import trocar_cnpj, cadastrar_cliente
@@ -32,12 +34,12 @@ class HistoricoAdministradoraInline(admin.TabularInline):
 
 
 @admin.register(Administradora)
-class AdministradoraAdmin(admin.ModelAdmin):
+class AdministradoraAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
     form = AdministradoraForm
     change_form_template = "admin/clientes/editar_administradora.html"
     list_display = ["razao_social", "nome_fantasia", "cnpj", "telefone", "email"]
     search_fields = ["razao_social", "nome_fantasia", "cnpj"]
-    readonly_fields = ["criado_em", "atualizado_em"]
+    readonly_fields = ["criado_em", "atualizado_em", "gerenciar_destinatarios"]
 
     def get_urls(self):
         return [path("consultar-cnpj/", self.admin_site.admin_view(self.consulta_cnpj_view), name="clientes_administradora_consultar_cnpj")] + super().get_urls()
@@ -128,14 +130,14 @@ class ContatoAdmin(admin.ModelAdmin):
 
 
 @admin.register(Cliente)
-class ClienteAdmin(admin.ModelAdmin):
+class ClienteAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
     form = ClienteEnderecoForm
     change_form_template = "admin/clientes/editar_cliente.html"
     fields = ["gerenciar_cnpj", "razao_social", "nome_fantasia", "cep", "logradouro", "numero", "complemento",
-              "bairro", "cidade", "estado", "observacoes", "gerenciar_contatos", "gerenciar_administradora", "id", "criado_em", "atualizado_em"]
+              "bairro", "cidade", "estado", "observacoes", "gerenciar_contatos", "gerenciar_administradora", "gerenciar_destinatarios", "id", "criado_em", "atualizado_em"]
     list_display = ["id", "razao_social", "nome_fantasia", "cidade", "estado"]
     search_fields = ["razao_social", "nome_fantasia", "cidade"]
-    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_cnpj", "gerenciar_contatos", "gerenciar_administradora"]
+    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_cnpj", "gerenciar_contatos", "gerenciar_administradora", "gerenciar_destinatarios"]
     inlines = [HistoricoCNPJInline, ContatoInline, HistoricoAdministradoraInline]
 
     @admin.display(description="Administradora")
@@ -255,6 +257,47 @@ class ClienteAdmin(admin.ModelAdmin):
             **self.admin_site.each_context(request), "title": "Cadastrar / trocar CNPJ",
             "opts": self.model._meta, "original": obj, "form": form,
         })
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ContatoAdministradora)
+class ContatoAdministradoraAdmin(admin.ModelAdmin):
+    actions = ['encerrar_destinatario']
+
+    @admin.action(description='Encerrar contato na empresa inteira (todos os destinatários)')
+    def encerrar_destinatario(self, request, queryset):
+        if not request.user.has_perms(['clientes.change_contatoadministradora', 'clientes.change_configuracaodestinatarios']):
+            raise PermissionDenied
+        from .destinatarios import encerrar_global
+        for pk in queryset.values_list('pk', flat=True):
+            encerrar_global(pk)
+        self.message_user(request, 'Contatos encerrados para todas as comunicações da empresa.')
+
+    list_display = ["nome", "administradora", "telefone", "email"]
+    search_fields = ["nome", "administradora__razao_social"]
+    list_filter = ["administradora"]
+    list_select_related = ["administradora"]
+    readonly_fields = ["criado_em"]
+
+    def get_readonly_fields(self, request, obj=None):
+        return ["criado_em", "encerrado_em", "administradora"] if obj else ["criado_em", "encerrado_em"]
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Responsabilidade)
+class ResponsabilidadeAdmin(admin.ModelAdmin):
+    list_display = ["contato_administradora", "cliente", "funcao", "data_inicio", "data_fim"]
+    search_fields = ["contato_administradora__nome", "cliente__razao_social", "funcao"]
+    list_filter = [VigenciaContatoFilter, "contato_administradora__administradora"]
+    list_select_related = ["cliente", "contato_administradora__administradora"]
+    autocomplete_fields = ["cliente", "contato_administradora"]
+
+    def get_readonly_fields(self, request, obj=None):
+        return ["cliente", "contato_administradora"] if obj else []
 
     def has_delete_permission(self, request, obj=None):
         return False

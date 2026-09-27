@@ -1,3 +1,8 @@
+> **CHECKPOINT LEGADO — NÃO USAR COMO CONTEXTO PADRÃO.**
+> Para novas sessões, leia [AGENTS.md](AGENTS.md) e [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
+> Consulte [PROJECT_STATE.md](PROJECT_STATE.md) quando precisar do estado global.
+> O conteúdo original abaixo foi preservado integralmente como histórico; suas instruções de retomada e pendências antigas podem estar superadas.
+
 # Projeto Manutec Clientes
 
 ## 1. Objetivo do projeto

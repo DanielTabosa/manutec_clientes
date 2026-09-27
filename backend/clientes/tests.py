@@ -8,29 +8,27 @@ from django.test import TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Cliente, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora
+from .models import Cliente, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora, ContatoAdministradora, Responsabilidade
 
 
 class ClienteAPITests(TransactionTestCase):
     """Cria a tabela nao gerenciada somente no banco descartavel de testes."""
 
     def setUp(self):
-        with connection.schema_editor() as editor:
-            editor.create_model(Cliente)
-            editor.create_model(HistoricoCNPJ)
-            editor.create_model(Contato)
-            editor.create_model(Administradora)
-            editor.create_model(ClienteAdministradora)
+        if 'clientes' not in connection.introspection.table_names():
+            with connection.schema_editor() as editor:
+                for model in (Cliente, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora, ContatoAdministradora, Responsabilidade):
+                    editor.create_model(model)
         self.api = APIClient()
         self.user = User.objects.create_user(username="operador", password="teste-local")
 
     def tearDown(self):
-        with connection.schema_editor() as editor:
-            editor.delete_model(ClienteAdministradora)
-            editor.delete_model(Administradora)
-            editor.delete_model(Contato)
-            editor.delete_model(HistoricoCNPJ)
-            editor.delete_model(Cliente)
+        # Tabelas gerenciadas agora referenciam o legado: manter o schema no flush.
+        with connection.cursor() as cursor:
+            for table in ('clientes_itemdestinatario', 'clientes_revisaodestinatarios', 'clientes_configuracaodestinatarios',
+                          'responsabilidades', 'contatos_administradora', 'cliente_administradora', 'administradoras',
+                          'contatos', 'historico_cnpj', 'clientes'):
+                cursor.execute('DELETE FROM ' + connection.ops.quote_name(table))
 
     def autorizar(self, *codigos):
         self.user.user_permissions.set(Permission.objects.filter(
@@ -439,3 +437,155 @@ class ClienteAPITests(TransactionTestCase):
         self.assertContains(self.client.get(f"/admin/clientes/administradora/{a.pk}/change/"), "consulta-cnpj-script")
         c = Cliente.objects.create(razao_social="Cliente")
         self.assertContains(self.client.get(f"/admin/clientes/cliente/{c.pk}/cnpj/"), "consulta-cnpj-script")
+
+    def preparar_responsabilidades(self):
+        from datetime import date
+        from .services import alterar_administradora
+        a = Administradora.objects.create(razao_social="Alfa")
+        c = Cliente.objects.create(razao_social="Sol")
+        alterar_administradora(c.pk, acao="vincular", administradora=a, data=date(2020, 1, 1))
+        p = ContatoAdministradora.objects.create(administradora=a, nome="Ana", email="financeiro@example.com")
+        self.autorizar("add_responsabilidade", "view_responsabilidade", "change_responsabilidade",
+                       "add_contatoadministradora", "view_contatoadministradora", "change_contatoadministradora",
+                       "change_cliente", "view_administradora")
+        return a, c, p
+
+    def test_responsabilidade_reutilizacao_e_dados_compartilhados(self):
+        from datetime import date
+        from .services import alterar_administradora
+        a, c, p = self.preparar_responsabilidades()
+        outro = Cliente.objects.create(razao_social="Mar")
+        alterar_administradora(outro.pk, acao="vincular", administradora=a, data=date(2020, 1, 1))
+        for cliente in (c, outro):
+            r = self.api.post('/api/v1/responsabilidades/', dict(cliente=cliente.pk, contato_administradora=p.pk,
+                              funcao="Financeiro", data_inicio="2020-02-01"))
+            self.assertEqual(r.status_code, 201, r.data)
+        r = self.api.patch(f'/api/v1/contatos-administradora/{p.pk}/', {"telefone": "123456"})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(ContatoAdministradora.objects.count(), 1)
+        self.assertTrue(all(r.contato_administradora.telefone == "123456" for r in Responsabilidade.objects.all()))
+        r = self.api.get(f'/api/v1/responsabilidades/?contato_administradora={p.pk}&vigente=true')
+        self.assertEqual(r.data['count'], 2)
+        # Canais e nomes iguais não são prova de identidade.
+        r = self.api.post('/api/v1/contatos-administradora/', {"administradora": a.pk, "nome": p.nome, "email": p.email})
+        self.assertEqual(r.status_code, 201, r.data)
+
+    def test_responsabilidade_datas_sobreposicao_e_retorno(self):
+        a, c, p = self.preparar_responsabilidades()
+        payload = dict(cliente=c.pk, contato_administradora=p.pk, funcao="Financeiro", data_inicio="2020-02-01", data_fim="2020-03-01")
+        self.assertEqual(self.api.post('/api/v1/responsabilidades/', payload).status_code, 201)
+        for mudanca in [dict(funcao=" FINANCEIRO "), dict(data_inicio="2019-01-01"),
+                        dict(data_inicio="2999-01-01", data_fim=None), dict(data_fim="2999-01-01"),
+                        dict(data_fim="2020-01-01"), dict(funcao=" ")]:
+            r = self.api.post('/api/v1/responsabilidades/', {**payload, **mudanca}, format='json')
+            self.assertEqual(r.status_code, 400, r.data)
+        r = self.api.post('/api/v1/responsabilidades/', {**payload, "data_inicio": "2020-03-02", "data_fim": None}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(self.api.post('/api/v1/responsabilidades/', {**payload, "funcao": "Gerente"}).status_code, 201)
+        outra = ContatoAdministradora.objects.create(administradora=a, nome="Carlos")
+        self.assertEqual(self.api.post('/api/v1/responsabilidades/', {**payload, "contato_administradora": outra.pk}).status_code, 201)
+
+    def test_responsabilidade_troca_atomica_e_historico(self):
+        a, c, p = self.preparar_responsabilidades()
+        r = Responsabilidade.objects.create(cliente=c, contato_administradora=p, funcao="Financeiro", data_inicio="2020-02-01")
+        b = Administradora.objects.create(razao_social="Beta")
+        url = f'/api/v1/clientes/{c.pk}/administradora/'
+        resposta = self.api.post(url, dict(acao="vincular", administradora=b.pk, data="2020-01-15"))
+        self.assertEqual(resposta.status_code, 400, resposta.data)
+        r.refresh_from_db()
+        self.assertIsNone(r.data_fim)
+        self.assertEqual(c.historico_administradoras.count(), 1)
+        self.assertEqual(self.api.post(url, dict(acao="vincular", administradora=b.pk, data="2020-03-01")).status_code, 201)
+        r.refresh_from_db()
+        self.assertEqual(str(r.data_fim), "2020-02-29")
+        self.assertEqual(self.api.patch(f'/api/v1/responsabilidades/{r.pk}/', {"data_fim": None}, format='json').status_code, 400)
+        self.assertEqual(self.api.post(url, dict(acao="vincular", administradora=a.pk, data="2020-04-01")).status_code, 201)
+        payload = dict(cliente=c.pk, contato_administradora=p.pk, funcao="Gerente", data_inicio="2020-02-01", data_fim="2020-04-02")
+        self.assertEqual(self.api.post('/api/v1/responsabilidades/', payload).status_code, 400)
+        payload.update(data_inicio="2020-04-01", data_fim=None)
+        self.assertEqual(self.api.post('/api/v1/responsabilidades/', payload, format='json').status_code, 201)
+        self.assertEqual(self.api.post(url, dict(acao="encerrar", data="2020-05-01")).status_code, 200)
+        self.assertFalse(Responsabilidade.objects.filter(data_fim__isnull=True).exists())
+
+    def test_responsabilidade_relacoes_fixas_e_permissoes(self):
+        a, c, p = self.preparar_responsabilidades()
+        r = Responsabilidade.objects.create(cliente=c, contato_administradora=p, funcao="Financeiro", data_inicio="2020-02-01")
+        b = Administradora.objects.create(razao_social="Beta")
+        outro = Cliente.objects.create(razao_social="Outro")
+        pessoa = ContatoAdministradora.objects.create(administradora=a, nome="Carlos")
+        for mudanca in ({"cliente": outro.pk}, {"contato_administradora": pessoa.pk}):
+            self.assertEqual(self.api.patch(f'/api/v1/responsabilidades/{r.pk}/', mudanca).status_code, 400)
+        self.assertEqual(self.api.patch(f'/api/v1/contatos-administradora/{p.pk}/', {"administradora": b.pk}).status_code, 400)
+        for rota, pk, model in [('responsabilidades', r.pk, 'responsabilidade'), ('contatos-administradora', p.pk, 'contatoadministradora')]:
+            self.autorizar('view_' + model, 'delete_' + model)
+            self.assertEqual(self.api.get(f'/api/v1/{rota}/').status_code, 200)
+            self.assertEqual(self.api.post(f'/api/v1/{rota}/', {}).status_code, 403)
+            self.assertEqual(self.api.patch(f'/api/v1/{rota}/{pk}/', {}).status_code, 403)
+            self.assertEqual(self.api.delete(f'/api/v1/{rota}/{pk}/').status_code, 405)
+            self.autorizar()
+            self.assertEqual(self.api.get(f'/api/v1/{rota}/').status_code, 403)
+
+    def test_responsabilidade_admin_validacao_e_encerramento(self):
+        a, c, p = self.preparar_responsabilidades()
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+        url = '/admin/clientes/responsabilidade/add/'
+        dados = dict(cliente=c.pk, contato_administradora=p.pk, funcao="Financeiro", data_inicio="2019-01-01", data_fim="", _save="Salvar")
+        response = self.client.post(url, dados)
+        self.assertContains(response, "O período deve estar contido")
+        self.assertFalse(Responsabilidade.objects.exists())
+        dados['data_inicio'] = '2020-02-01'
+        self.assertEqual(self.client.post(url, dados).status_code, 302)
+        r = Responsabilidade.objects.get()
+        url = f'/admin/clientes/responsabilidade/{r.pk}/change/'
+        self.assertNotContains(self.client.get(url), 'name="cliente"')
+        dados['data_fim'] = '2020-03-01'
+        self.assertEqual(self.client.post(url, dados).status_code, 302)
+        r.refresh_from_db()
+        self.assertEqual(str(r.data_fim), '2020-03-01')
+        self.assertEqual(self.client.get(f'/admin/clientes/responsabilidade/{r.pk}/delete/').status_code, 403)
+
+    def test_responsabilidade_filtros_invalidos(self):
+        a, c, p = self.preparar_responsabilidades()
+        for query in ['cliente=x', 'contato_administradora=-1', 'vigente=sim']:
+            self.assertEqual(self.api.get('/api/v1/responsabilidades/?' + query).status_code, 400)
+        self.assertEqual(self.api.get('/api/v1/contatos-administradora/?administradora=x').status_code, 400)
+
+    def test_troca_preserva_outros_clientes_e_rejeita_truncar_historico(self):
+        from datetime import date
+        from .services import alterar_administradora
+        a, c, p = self.preparar_responsabilidades()
+        outro = Cliente.objects.create(razao_social="Mar")
+        alterar_administradora(outro.pk, acao="vincular", administradora=a, data=date(2020, 1, 1))
+        intacta = Responsabilidade.objects.create(cliente=outro, contato_administradora=p, funcao="Financeiro", data_inicio="2020-01-01")
+        encerrada = Responsabilidade.objects.create(cliente=c, contato_administradora=p, funcao="Financeiro", data_inicio="2020-01-01", data_fim="2020-06-01")
+        url = f'/api/v1/clientes/{c.pk}/administradora/'
+        self.assertEqual(self.api.post(url, dict(acao="encerrar", data="2020-05-01")).status_code, 400)
+        self.assertEqual(self.api.post(url, dict(acao="encerrar", data="2020-06-01")).status_code, 200)
+        intacta.refresh_from_db()
+        encerrada.refresh_from_db()
+        self.assertIsNone(intacta.data_fim)
+        self.assertEqual(str(encerrada.data_fim), '2020-06-01')
+        b = Administradora.objects.create(razao_social="Sem vínculo")
+        estrangeiro = ContatoAdministradora.objects.create(administradora=b, nome="Carlos")
+        payload = dict(cliente=outro.pk, contato_administradora=estrangeiro.pk, funcao="Gerente", data_inicio="2020-01-01")
+        self.assertEqual(self.api.post('/api/v1/responsabilidades/', payload).status_code, 400)
+
+    def test_admin_contato_administradora_cadastro_e_correcao(self):
+        a, c, p = self.preparar_responsabilidades()
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+        url = '/admin/clientes/contatoadministradora/add/'
+        data = dict(administradora=a.pk, nome="Carlos", telefone="", email="incorreto", _save="Salvar")
+        self.assertEqual(self.client.post(url, data).status_code, 200)
+        self.assertEqual(ContatoAdministradora.objects.count(), 1)
+        data['email'] = 'financeiro@example.com'
+        self.assertEqual(self.client.post(url, data).status_code, 302)
+        url = f'/admin/clientes/contatoadministradora/{p.pk}/change/'
+        self.assertNotContains(self.client.get(url), 'name="administradora"')
+        self.assertEqual(self.client.post(url, dict(nome="Ana", telefone="99999", email=p.email, _save="Salvar")).status_code, 302)
+        p.refresh_from_db()
+        self.assertEqual(p.telefone, '99999')
+        self.assertEqual(self.client.get(f'/admin/clientes/contatoadministradora/{p.pk}/delete/').status_code, 403)
