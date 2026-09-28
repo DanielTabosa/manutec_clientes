@@ -304,3 +304,18 @@ Validação sem rede/credenciais reais: `.\.venv\Scripts\python.exe -m unittest 
 O teste pede, com entrada oculta, a URL de autorização fornecida pelo portal. Confere se pertence à aplicação configurada, extrai a redirect_uri sem presumir www/barra final e gera novo state. Abre o navegador; usuário entra com a conta de teste e autoriza. Em seguida, colar no terminal o endereço completo de retorno. O teste valida destino/state, extrai o código e troca imediatamente pelos tokens. Não usar o código obtido antes de iniciar esse fluxo: ele não corresponde ao novo state. Não colar URLs/códigos no chat. URLs de retorno com query pré-configurada ou fragmento não são suportadas nesta sonda.
 
 O código não é gravado; novos Access Token e Refresh Token são salvos no arquivo protegido pelo mesmo mecanismo da renovação. O arquivo não deve permanecer aberto com alterações antigas. O navegador padrão recebe o endereço de autorização; o endereço de retorno pode permanecer no histórico dele. O modo sem --autorizar continua sendo renovação. Oito testes simulados aprovados; autorização real ainda não executada pelo script. Referência: [troca inicial oficial](https://developers.contaazul.com/changecode).
+
+
+### Consulta manual limitada ao Conta Azul
+
+Após autenticar a conta de desenvolvimento, na raiz do projeto:
+
+```powershell
+.venv\Scripts\python.exe backend\contaazul_consulta.py
+```
+
+Usa ACCESS_TOKEN em `.venv/contaazul/credenciais.env`; não imprime nem altera credenciais. O token determina a conta acessada; a sonda não verifica o ambiente da empresa. Padrão: hoje e 14 dias anteriores. Para amostra antiga, passe `--inicio YYYY-MM-DD --fim YYYY-MM-DD`, máximo 15 datas inclusivas. NFS-e usa competência; contas a receber usam vencimento.
+
+No máximo quatro GETs: primeira página de NFS-e e contas a receber (10 itens cada), primeira parcela e primeira cobrança vinculada, quando existirem. Resumo sem nomes, valores, IDs, URLs ou corpos de erro. Não percorre páginas, segue links, baixa arquivos, importa no banco ou envia documentos. Resultado vazio/primeira parcela sem cobrança é inconclusivo; link presente não comprova PDF. Não há renovação/repetição automática. HTTP 401: executar manualmente `backend/contaazul_auth.py` para renovar, depois repetir a consulta.
+
+Verificação isolada: `.venv\Scripts\python.exe -m unittest discover -s backend -p "test_contaazul*.py"`. São testes com rede simulada, sem SQLite/PostgreSQL. Autenticação real foi informada como concluída pelo usuário; consulta real ainda pendente.
