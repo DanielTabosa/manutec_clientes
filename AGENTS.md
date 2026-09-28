@@ -7,6 +7,10 @@
 - Sincronize os documentos afetados após mudanças relevantes. Ao final de cada sessão relevante, substitua o conteúdo de `SESSION_HANDOFF.md`; não acumule histórico nele.
 - Ao concluir cada etapa, revisar o diff, executar as validações pertinentes, fazer commit e push para o remoto configurado. Autorização permanente do usuário; não pedir nova confirmação para essas operações rotineiras. Nunca incluir credenciais ou dados sensíveis. Se houver falha ou conflito, preservar o trabalho e informar; não usar force push sem autorização específica.
 
+## Processo proporcional
+
+Preferência expressa do usuário: adequar o processo à complexidade e ao risco da tarefa, inclusive ao usar Superpowers. Fazer leituras pontuais, planos curtos e testes pertinentes; evitar releituras, planejamento extenso e revisões repetidas sem necessidade. Tarefas simples ficam com o agente principal; usar subagentes apenas com benefício real de isolamento ou paralelismo. Preservar as verificações necessárias, a integridade dos dados e a rotina de commit/push.
+
 ## Economia de contexto
 
 1. Leia este `AGENTS.md`.
