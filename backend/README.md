@@ -284,3 +284,14 @@ No cadastro do cliente, as ações de CNPJ, contatos e vínculo da administrador
 Em destinatários, Selecionar todas marca/desmarca as cinco categorias da linha e indica seleção parcial. Parar de receber neste condomínio é uma ação separada: limpa e desabilita as categorias enquanto marcada. Isso não cria reativação de encerramentos já salvos; as regras do serviço permanecem iguais. As opções de seguir a lista mantêm as atualizações da administradora; contatos diretos continuam selecionáveis. Escolher os destinatários deste condomínio ignora a lista da empresa e usa as escolhas locais.
 
 Validação desta alteração: 49 testes SQLite aprovados, check limpo e makemigrations --check sem diferenças. Edge/Playwright em SQLite separado confirmou ações junto às três tabelas, seleção/desmarcação, estado parcial, persistência, encerramento separado, explicação dos modos e retorno com rolagem após salvar vínculo. Capturas inspecionadas; nenhum teste gravou no PostgreSQL instalado. Não houve alteração de schema nem nova validação de concorrência PostgreSQL.
+
+
+### Teste manual de autenticação Conta Azul (desenvolvimento)
+
+Sonda independente do Django: `backend/contaazul_auth.py`. Não consulta banco, emite documentos ou envia e-mails. Preencher localmente `.venv/contaazul/credenciais.env` com CLIENT_ID, CLIENT_SECRET e REFRESH_TOKEN da mesma aplicação de desenvolvimento; ACCESS_TOKEN inicialmente vazio. Usar valores entre aspas simples se contiverem caracteres especiais. Não colar o campo Authorization: o script calcula o cabeçalho Basic a partir do ID/segredo.
+
+Executar uma única vez, depois de preencher: `.\.venv\Scripts\python.exe backend/contaazul_auth.py`. A renovação consome/rotaciona o Refresh Token; o script salva os dois tokens novos por substituição do arquivo antes de anunciar sucesso. Não editar com uma cópia antiga aberta no editor após a execução. Sem tentativas automáticas, proxies de ambiente ou redirecionamentos HTTP. Sucesso significa autenticação, não comprova acesso aos PDFs nem que a conta conectada é de teste; as credenciais escolhidas determinam a conta.
+
+O diretório local foi criado com ACL para usuário atual e SYSTEM e é ignorado pelo Git. Preservar com segurança antes de recriar .venv. Se ocorrer falha de gravação, verificar localmente `tokens-pendentes.env` e recuperar os valores completos antes de repetir; não compartilhar seu conteúdo. A existência desse arquivo bloqueia outra execução. Interrupções ou falhas de rede podem exigir nova autorização no portal. Esta é uma sonda manual, sem renovação agendada ou integração ao painel.
+
+Validação sem rede/credenciais reais: `.\.venv\Scripts\python.exe -m unittest discover -s backend -p test_contaazul_auth.py` (seis testes). Referência: [renovação oficial](https://developers.contaazul.com/renewingaccesstoken).
