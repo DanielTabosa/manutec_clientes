@@ -295,3 +295,12 @@ Executar uma única vez, depois de preencher: `.\.venv\Scripts\python.exe backen
 O diretório local foi criado com ACL para usuário atual e SYSTEM e é ignorado pelo Git. Preservar com segurança antes de recriar .venv. Se ocorrer falha de gravação, verificar localmente `tokens-pendentes.env` e recuperar os valores completos antes de repetir; não compartilhar seu conteúdo. A existência desse arquivo bloqueia outra execução. Interrupções ou falhas de rede podem exigir nova autorização no portal. Esta é uma sonda manual, sem renovação agendada ou integração ao painel.
 
 Validação sem rede/credenciais reais: `.\.venv\Scripts\python.exe -m unittest discover -s backend -p test_contaazul_auth.py` (seis testes). Referência: [renovação oficial](https://developers.contaazul.com/renewingaccesstoken).
+
+
+#### Primeira autorização, quando só existe o exemplo de Refresh Token
+
+`REFRESH_TOKEN_GERADO` no cURL do portal é um marcador, não um token. Authorization é Basic (ID/segredo codificados), não Refresh Token. Preencher somente CLIENT_ID e CLIENT_SECRET no arquivo local e fechar o editor desse arquivo. Executar `.\.venv\Scripts\python.exe backend/contaazul_auth.py --autorizar` em terminal interativo local.
+
+O teste pede, com entrada oculta, a URL de autorização fornecida pelo portal. Confere se pertence à aplicação configurada, extrai a redirect_uri sem presumir www/barra final e gera novo state. Abre o navegador; usuário entra com a conta de teste e autoriza. Em seguida, colar no terminal o endereço completo de retorno. O teste valida destino/state, extrai o código e troca imediatamente pelos tokens. Não usar o código obtido antes de iniciar esse fluxo: ele não corresponde ao novo state. Não colar URLs/códigos no chat. URLs de retorno com query pré-configurada ou fragmento não são suportadas nesta sonda.
+
+O código não é gravado; novos Access Token e Refresh Token são salvos no arquivo protegido pelo mesmo mecanismo da renovação. O arquivo não deve permanecer aberto com alterações antigas. O navegador padrão recebe o endereço de autorização; o endereço de retorno pode permanecer no histórico dele. O modo sem --autorizar continua sendo renovação. Oito testes simulados aprovados; autorização real ainda não executada pelo script. Referência: [troca inicial oficial](https://developers.contaazul.com/changecode).
