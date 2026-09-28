@@ -1,6 +1,6 @@
 # Preparação do envio de documentos
 
-Referência: conversa de 28/09/2026. Planejamento apenas; integração, anexos e envio ainda não implementados. A sessão foi pausada pelo usuário por limite de tokens.
+Referência: conversa de 28/09/2026. Planejamento apenas; integração, anexos e envio ainda não implementados. Pesquisa retomada após pedido do usuário para continuar; nenhuma conexão autenticada foi feita.
 
 ## Informações e preferências confirmadas pelo usuário
 
@@ -23,10 +23,22 @@ Fluxo proposto: buscar no Conta Azul ou anexar → conferir condomínio e catego
 - [Download de NFS-e no painel Conta Azul](https://ajuda.contaazul.com/hc/pt-br/articles/8126334141581-NFS-e-como-baixar-os-arquivos-da-nota-fiscal): descreve opções de PDF/XML pela interface, sujeitas à disponibilidade da prefeitura. Disponibilidade no painel não comprova disponibilidade na API.
 - [Introdução às APIs](https://developers.contaazul.com/aboutapis) e [changelog](https://developers.contaazul.com/changelog): consultar documentação atual ao retomar; FAQs e documentação de versões antigas podem divergir. Não prometer recuperação de ambos os PDFs antes de testar a API pública.
 
-## Ponto exato de retomada
+## Resultado da investigação na retomada
 
-Foi proposta a próxima etapa: investigar especificamente recuperação de NFS-e e boletos existentes e preparar uma conexão somente de consulta ao Conta Azul, sem emitir cobranças ou enviar e-mails. O assistente pediu autorização; o usuário respondeu pedindo pausa, portanto essa autorização ainda não foi concedida.
+A [consulta de NFS-e](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/obternotasfiscaisservicoporfiltro) existe em GET /v1/notas-fiscais-servico. Exige período de até 15 dias e permite paginação e filtros de cliente/status. A introdução da API está desatualizada em relação a esse endpoint; priorizar a operação e seu contrato.
 
-Ao retomar, apresentar brevemente essa etapa e pedir autorização. Depois, verificar endpoints atuais e requisitos de OAuth, esclarecer acesso ao portal do desenvolvedor e validar uma amostra com autorização específica. Não pedir senhas/tokens no chat, não ler/expor .env, não emitir documentos, não criar cobranças e não enviar e-mails por antecipação. Registrar explicitamente limitações e oferecer anexação local caso o documento não esteja acessível pela API.
+No [OpenAPI fiscal](https://developers.contaazul.com/_bundle/open-api-docs/open-api-invoice.json?download=), NotaFiscalServico contém identificação, documento do cliente, venda, competência, valor e status, mas não campo de PDF, XML ou URL. Portanto a listagem é documentada; obtenção do arquivo NFS-e pela API continua não comprovada. O download de NF-e por chave não deve ser assumido como solução para NFS-e.
 
-Usuário quer progresso por etapas: ao concluir uma, explicar a próxima e pedir autorização para avançar. Commit e push rotineiros já têm autorização permanente em AGENTS.md.
+Cobranças: GET /v1/financeiro/eventos-financeiros/contas-a-receber/cobranca/{id_cobranca} fornece URL e status; ainda falta verificar em amostra real se o link permite obter PDF, se exige sessão e como relacionar a cobrança à venda/parcela. Não gerar cobrança para fazer esse teste.
+
+## Preparação do acesso — sem conexão executada
+
+Conforme [guia de credenciais](https://developers.contaazul.com/guide), é necessário acesso ao portal do desenvolvedor e aplicação com client_id/client_secret. O [fluxo de autorização](https://developers.contaazul.com/requestingcode) exige redirect_uri idêntica à cadastrada e state aleatório validado no retorno. A documentação informa permissão administrativa no escopo OAuth: não há garantia de token restrito a leitura. Consultas devem ser limitadas por nossa implementação; armazenamento dos segredos e renovação ainda precisam ser projetados.
+
+Antes de criar aplicação ou iniciar OAuth, confirmar se o usuário já tem cadastro/aplicação e preparar a URL de retorno. Não pedir segredos no chat nem copiar URL de retorno contendo código para documentação. Não ler .env apenas por estar aberto no editor.
+
+## Próxima etapa proposta
+
+Confirmar acesso ao Portal do Desenvolvedor e preparar a aplicação/conexão, com autorização do usuário. Depois validar uma NFS-e e uma cobrança existentes em período restrito, sem emitir, alterar ou enviar documentos. Registrar se os arquivos são realmente obtidos; se a NFS-e continuar sem download público documentado, consultar suporte oficial ou usar anexação local, sem recorrer à API privada.
+
+A retomada autorizou continuar a investigação. Conexão real, implementação de integração e envio ainda não foram executados. Usuário quer progresso por etapas: ao concluir uma, explicar a próxima e pedir autorização para avançar. Commit e push rotineiros têm autorização permanente em AGENTS.md.
