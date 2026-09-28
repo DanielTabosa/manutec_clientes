@@ -1,6 +1,6 @@
 # Regras de negócio consolidadas
 
-Estas regras registram decisões vigentes. Contatos de administradoras e responsabilidades estão implementados no Django; configuração de destinatários implementada no código e validada em ambiente isolado; implantação da migration 0007 e envio real continuam pendentes. Estado de entrega e problemas ficam em [PROJECT_STATE.md](../PROJECT_STATE.md).
+Estas regras registram decisões vigentes. Contatos de administradoras e responsabilidades estão implementados no Django; configuração de destinatários implementada, validada em ambiente isolado e implantada pela migration 0007 em 28/09/2026; envio real continua pendente. Estado de entrega e problemas ficam em [PROJECT_STATE.md](../PROJECT_STATE.md).
 
 ## Cliente, CNPJ e endereço
 
@@ -39,7 +39,7 @@ Estas regras registram decisões vigentes. Contatos de administradoras e respons
 - Um cliente pode ter múltiplos destinatários, selecionados entre contatos existentes, sem cadastro avulso de nome/e-mail. Todos são tratados igualmente como destinatários, sem distinção de principal/copia ou Para/Cópia no cadastro. Essa decisão substitui a classificação anterior; não define a forma técnica de entrega dos futuros envios. A vigência segue a decisão de efeito imediato abaixo.
 - Não presumir que um contato ou responsável financeiro seja automaticamente destinatário de faturamento. O conjunto de envio deve ser cadastrado explicitamente.
 
-### Decisões de 27/09/2026 — implementadas, implantação pendente
+### Decisões de 27/09/2026 — implementadas e implantadas
 
 - Destinatários podem ser contatos do próprio cliente, da administradora ou de ambos simultaneamente.
 - Selecionar somente contatos já cadastrados. Para um novo e-mail de envio, cadastrar primeiro um novo contato; não manter e-mail avulso no faturamento.
@@ -51,7 +51,7 @@ Estas regras registram decisões vigentes. Contatos de administradoras e respons
 - A ausência de e-mail não impede selecionar um contato como destinatário de faturamento: ele pode possuir telefone para futuro envio por WhatsApp. Essa decisão não implementa o canal WhatsApp nem exige e-mail para o cadastro de destinatários.
 - Contatos encerrados deixam automaticamente de receber documentos e comunicações; preservar o histórico. Para contatos da administradora, permitir encerrar a participação apenas em um condomínio ou encerrar o contato na empresa inteira, retirando-o de todos os destinatários. O encerramento local também se aplica a contatos herdados do padrão, sem afetar outros condomínios.
 - Alterações de destinatários, categorias e configuração do padrão passam a valer imediatamente ao salvar, preservando a configuração anterior no histórico. Agendamento de mudanças fica fora desta etapa.
-- Configuração implementada no painel/API e validada em ambiente isolado. Migration 0007 ainda não aplicada ao banco instalado; não há envio real de documentos.
+- Configuração implementada no painel/API e validada em ambiente isolado. Migration 0007 aplicada ao banco instalado em 28/09/2026; não há envio real de documentos.
 
 As questões de negócio levantadas nesta rodada foram respondidas. O [desenho técnico e plano incremental](DESTINATARIOS_COMUNICACOES.md) foi elaborado com base nos modelos e schema existentes; foi implementado com os limites e resultados registrados no documento. Principal/alternativo de responsabilidades permanece adiado.
 

@@ -97,7 +97,7 @@ permissao de alterar cliente. Consulta exige permissao de visualizar.
 O modelo HistoricoCNPJ tambem usa `managed=False`; a migracao 0002
 registra o estado sem recriar a tabela SQL existente.
 Contatos diretos e vinculos historicos de administradoras tambem estao
-implementados, conforme as secoes abaixo. Responsabilidades estão implementadas; destinatários de faturamento continuam pendentes.
+implementados, conforme as secoes abaixo. Responsabilidades e configuração de destinatários estão implementadas; envio real de documentos continua pendente.
 
 ## Cadastro com consulta por CNPJ
 
@@ -241,12 +241,12 @@ Execute `.venv/Scripts/python.exe backend/verificar_postgresql.py` na raiz. O sc
 
 Para inspeção visual, `--keep` mantém o banco descartável cujo nome é mostrado. Aponte POSTGRES_DB apenas no processo do servidor temporário para esse nome e inicie `runserver 127.0.0.1:8765 --noreload`. O script prepara dois clientes e um usuário fictício exclusivo desse banco. `node backend/verificar_painel.cjs` usa Playwright disponível no runtime e Edge instalado; configure NODE_PATH para o diretório de pacotes do runtime quando necessário. QA_BASE_URL aceita servidor local (padrão porta 8765); QA_SCREENSHOT_DIR define a pasta de capturas (padrão temporária). Execute uma vez por banco novo. Encerre o servidor e remova somente esse banco descartável após a inspeção; `--keep` transfere essa limpeza ao operador. Não use as credenciais fictícias em outro ambiente.
 
-Validação de 26–27/09/2026: PostgreSQL 18.4, oito verificações aprovadas, bloqueios concorrentes observados e capturas inspecionadas. A migration instalada criou as permissões dos dois modelos; nenhuma permissão foi concedida a usuários existentes. Na conclusão da etapa 0006, o banco instalado estava sem migrations pendentes. Com a entrega de destinatários abaixo, a 0007 está pendente de aplicação. Servidor e bancos descartáveis removidos.
+Validação de 26–27/09/2026: PostgreSQL 18.4, oito verificações aprovadas, bloqueios concorrentes observados e capturas inspecionadas. A migration instalada criou as permissões dos dois modelos; nenhuma permissão foi concedida a usuários existentes. Na conclusão da etapa 0006, o banco instalado estava sem migrations pendentes. A migration 0007 foi aplicada em 28/09/2026, conforme a seção abaixo. Servidor e bancos descartáveis removidos.
 
 
-## Destinatários de documentos e comunicações (27/09/2026)
+## Destinatários de documentos e comunicações (implantação em 28/09/2026)
 
-Implementados painel, API e serviços; migration 0007 validada em banco descartável, **ainda não aplicada ao banco instalado**. Aplicação usa 0007 para três tabelas novas e a coluna encerrado_em de contatos_administradora. Não reaplicar schema.sql e não converter automaticamente destinatarios_faturamento. Antes da implantação, conferir a contagem do legado; se houver registros, conciliar contatos e categorias explicitamente. A nova versão do código requer essa migration para operar no banco instalado.
+Implementados painel, API e serviços; migration 0007 validada em banco descartável e **aplicada ao banco instalado em 28/09/2026**. Aplicação usa 0007 para três tabelas novas e a coluna encerrado_em de contatos_administradora. Não reaplicar schema.sql e não converter automaticamente destinatarios_faturamento. Nesta implantação, o legado estava vazio (0 registros). Em outras instalações, conferir a contagem antes de aplicar e conciliar explicitamente contatos/categorias se houver registros. A nova versão do código requer essa migration para operar.
 
 No cadastro de cliente/administradora, abrir **Destinatários e histórico**. Selecionar contatos existentes e categorias boleto, nota fiscal, laudo, comunicado e cobrança. No condomínio, escolher usar/complementar/substituir padrão; a escolha vale para todas as categorias. Marcar encerramento local retira o contato da empresa somente daquele condomínio, inclusive se herdado do padrão. Na listagem de contatos da administradora, a ação **Encerrar contato na empresa inteira** retira o contato de todos os destinatários; não encerra automaticamente responsabilidades/funções anteriores.
 
@@ -266,3 +266,12 @@ Permissões: leitura exige `view_configuracaodestinatarios`, `view_cliente` ou `
 Sem e-mail é permitido. O módulo configura destinatários; não envia documentos por e-mail ou WhatsApp. Histórico mostra revisões locais e padrões das empresas vinculadas com origem identificada; não prova o conjunto efetivo de uma data passada, não versiona telefone/e-mail e não registra entregas.
 
 Validação: `python backend/manage.py test clientes --settings=config.test_settings` executou 48 testes SQLite. `backend/verificar_postgresql.py` executou 11 verificações em banco descartável, incluindo legado preservado pela migration, checks/FKs e concorrência; o script remove o banco, exceto com `--keep`. Para inspeção, executar `backend/verificar_destinatarios_painel.cjs` com Node/Playwright/Edge contra servidor no banco descartável: `QA_BASE_URL` localhost e `QA_SCREENSHOT_DIR` para capturas. Remover o banco mantido e encerrar servidor após inspeção. SQLite não valida bloqueios/triggers PostgreSQL. Casos concorrentes são evidência limitada aos cenários exercitados.
+
+
+### Verificação da implantação e recuperação local
+
+Em 28/09/2026, o backup anterior à 0007 foi criado com `pg_dump --format=custom`, teve o catálogo conferido e foi restaurado com `pg_restore --exit-on-error --single-transaction` em banco temporário criado a partir de `template0`. Estrutura e resumos dos registros de todas as 18 tabelas preexistentes coincidiram; o banco temporário foi removido. Após a migration, os registros anteriores e concessões de permissões permaneceram iguais. As três tabelas novas estão vazias; a coluna encerrado_em está nula nos contatos anteriores, as sete restrições nomeadas estão validadas e as duas permissões do módulo existem sem novas concessões. Check passou, modelos sem diferenças e nenhuma migration pendente. Não foram inseridos dados fictícios no banco instalado.
+
+Backup local: `.venv/backups/pre_0007_20260928/pre_0007.dump`; evidência e SHA-256 em `verification.json` na mesma pasta. Diretório com ACL restrita ao usuário local e SYSTEM, ignorado pelo Git. Preservar essa pasta antes de recriar/remover a `.venv`; o backup não está no remoto e contém dados sensíveis.
+
+Para recuperação, validar o SHA-256 e restaurar primeiro em outro banco vazio usando PostgreSQL 18, `template0` e `pg_restore --exit-on-error --single-transaction --dbname=<banco_de_recuperacao> <backup>`, com autenticação local protegida. Conferir os dados antes de qualquer troca do banco da aplicação. O backup representa o estado anterior à 0007: para usar o código atual, aplicar a migration no banco recuperado após validação. Não restaurar sobre o banco em uso nem reverter a migration automaticamente; sua reversão remove os dados novos de destinatários. Alterações posteriores ao backup exigem avaliação antes de uma recuperação.

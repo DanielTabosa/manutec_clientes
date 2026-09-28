@@ -1,6 +1,6 @@
 # Destinatários de documentos e comunicações — implementação e desenho
 
-Referência: 27/09/2026. Implementado no código e validado em ambiente isolado, com base nas [regras aprovadas](REGRAS_NEGOCIO.md). Migration 0007 criada, ainda não aplicada ao banco instalado. O desenho abaixo registra a estrutura adotada; a tabela legada não foi convertida.
+Referência: 28/09/2026. Implementado no código e validado em ambiente isolado, com base nas [regras aprovadas](REGRAS_NEGOCIO.md). Migration 0007 aplicada ao banco instalado em 28/09/2026, após backup com restauração verificada e confirmação de legado vazio. O desenho abaixo registra a estrutura adotada; a tabela legada não foi convertida.
 
 ## Entrega e limites verificados
 
@@ -9,7 +9,7 @@ Referência: 27/09/2026. Implementado no código e validado em ambiente isolado,
 - 48 testes SQLite aprovados (37 anteriores e 11 novos). PostgreSQL descartável: 11 verificações aprovadas, incluindo preservação de destinatário legado através da migration, restrições reais, edição concorrente e seleção bloqueada pelo encerramento global. Os três testes concorrentes anteriores também passaram. Nem todos os cenários previstos abaixo foram exercitados concorrentemente.
 - Edge confirmou contato sem e-mail, duas categorias, encerramento local, preservação de outro cliente e propagação de alteração do padrão. Capturas inspecionadas. Servidor e banco descartável removidos.
 - Histórico reúne revisões do cliente e dos padrões das empresas vinculadas, identificando sua origem, mais os últimos 25 encerramentos globais pertinentes. Não reconstrói automaticamente o conjunto efetivo em uma data passada: uma revisão de empresa exibida não comprova adoção pelo cliente naquele momento. Não há versionamento dos dados pessoais dos contatos ou histórico de envios.
-- Limites: SQL direto/bulk contorna validações de pertencimento/encerramento; sem reativação local automática; padrão só reflete contatos globalmente ativos. Integrações e envio continuam fora da entrega. Banco instalado permanece na migration 0006 até implantação da 0007.
+- Limites: SQL direto/bulk contorna validações de pertencimento/encerramento; sem reativação local automática; padrão só reflete contatos globalmente ativos. Integrações e envio continuam fora da entrega. Banco instalado na migration 0007, sem migrations pendentes; dados preexistentes e concessões de permissões preservados.
 
 
 ## Escopo da primeira entrega
