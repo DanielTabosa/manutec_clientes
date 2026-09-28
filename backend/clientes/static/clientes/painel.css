@@ -1,0 +1,12 @@
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 12px;
+  background: var(--darkened-bg);
+  border-bottom: 1px solid var(--hairline-color);
+}
+.inline-actions:empty { display: none; }
+.modo-ajuda { max-width: 850px; margin-bottom: 20px; }
+[data-destinatario] input[type="checkbox"] { width: 18px; height: 18px; }
+.inline-group { scroll-margin-top: 16px; }

@@ -8,6 +8,6 @@ Ao encerrar, o cliente fica sem administradora atual. O histórico será mantido
 <form method="post">{% csrf_token %}
   {{ form.as_p }}
   <input type="submit" value="Salvar vínculo">
-  <a href="{% url 'admin:clientes_cliente_change' original.pk %}">Cancelar</a>
+  <a href="{% url 'admin:clientes_cliente_change' original.pk %}#historico_administradoras-group">Cancelar</a>
 </form>
 {% endblock %}

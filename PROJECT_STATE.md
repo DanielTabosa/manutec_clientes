@@ -1,6 +1,6 @@
 # Estado global — Manutec Clientes
 
-Referência: 28/09/2026. Entrega atual validada por 48 testes SQLite, 11 verificações PostgreSQL 18.4 (incluindo concorrência) e inspeção visual no Edge com banco isolado. Migration 0007 aplicada ao banco instalado em 28/09, após backup com restauração verificada; dados preexistentes preservados. Não é um diário. Retomada operacional: [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
+Referência: 28/09/2026. Entrega atual validada por 49 testes SQLite, 11 verificações PostgreSQL 18.4 (incluindo concorrência) e inspeção visual no Edge com banco isolado. Migration 0007 aplicada ao banco instalado em 28/09, após backup com restauração verificada; dados preexistentes preservados. Não é um diário. Retomada operacional: [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
 
 ## Objetivo e etapa macro
 
@@ -32,6 +32,8 @@ O schema contém oito tabelas de domínio; sua existência na instalação foi r
 | Configuração/revisão/item de destinatários | Três tabelas gerenciadas na migration 0007; painel/API implementados e migration aplicada em 28/09/2026 |
 
 Consultas BrasilAPI/ViaCEP implementadas nos formulários pertinentes. Parcial: identidade de contatos, telefone/e-mail únicos por registro, função livre, histórico editável de contatos e consulta aos anteriores. Pendente: prioridade/alternativo estruturado, apresentação compacta de dois anteriores, frontend próprio e integrações operacionais.
+
+Painel ajustado em 28/09: nomes explicativos dos modos de destinatários, seleção de todas as categorias por contato, ações junto às tabelas e retorno ao ponto do cadastro após salvar vínculo/CNPJ ou adicionar contato. 49 testes SQLite e fluxo Edge isolado aprovados; contratos e regras preservados.
 
 ## Endpoints principais
 

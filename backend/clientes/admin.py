@@ -5,7 +5,6 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
-from django.utils.html import format_html
 from .models import ContatoAdministradora, Responsabilidade
 from .models import Cliente, HistoricoCNPJ, Contato
 from .forms import TrocaCNPJForm, CadastroClienteForm, ClienteEnderecoForm
@@ -17,6 +16,9 @@ from .services import alterar_administradora
 
 
 class HistoricoAdministradoraInline(admin.TabularInline):
+    template = "admin/clientes/inline_com_acoes.html"
+    secao = "administradora"
+    verbose_name_plural = "Administradora e histórico de vínculos"
     model = ClienteAdministradora
     fields = ["administradora", "data_inicio", "data_fim"]
     readonly_fields = fields
@@ -59,6 +61,9 @@ class AdministradoraAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
 
 
 class HistoricoCNPJInline(admin.TabularInline):
+    template = "admin/clientes/inline_com_acoes.html"
+    secao = "cnpj"
+    verbose_name_plural = "CNPJ e histórico"
     model = HistoricoCNPJ
     fields = ["cnpj", "data_inicio", "data_fim"]
     readonly_fields = fields
@@ -76,6 +81,9 @@ class HistoricoCNPJInline(admin.TabularInline):
 
 
 class ContatoInline(admin.TabularInline):
+    template = "admin/clientes/inline_com_acoes.html"
+    secao = "contatos"
+    verbose_name_plural = "Contatos do condomínio"
     model = Contato
     fields = ["nome", "funcao", "telefone", "email", "data_inicio", "data_fim"]
     readonly_fields = fields
@@ -118,6 +126,14 @@ class ContatoAdmin(admin.ModelAdmin):
             form.base_fields["cliente"].widget.can_add_related = False
         return form
 
+    def response_add(self, request, obj, post_url_continue=None):
+        if (request.GET.get("cliente") == str(obj.cliente_id)
+                and "_save" in request.POST and "_popup" not in request.POST):
+            response = super().response_add(request, obj, post_url_continue)
+            response["Location"] = reverse("admin:clientes_cliente_change", args=[obj.cliente_id]) + "#contatos-group"
+            return response
+        return super().response_add(request, obj, post_url_continue)
+
     @admin.display(boolean=True, description="Vigente")
     def vigente(self, obj):
         return obj.data_fim is None
@@ -133,21 +149,12 @@ class ContatoAdmin(admin.ModelAdmin):
 class ClienteAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
     form = ClienteEnderecoForm
     change_form_template = "admin/clientes/editar_cliente.html"
-    fields = ["gerenciar_cnpj", "razao_social", "nome_fantasia", "cep", "logradouro", "numero", "complemento",
-              "bairro", "cidade", "estado", "observacoes", "gerenciar_contatos", "gerenciar_administradora", "gerenciar_destinatarios", "id", "criado_em", "atualizado_em"]
+    fields = ["razao_social", "nome_fantasia", "cep", "logradouro", "numero", "complemento",
+              "bairro", "cidade", "estado", "observacoes", "gerenciar_destinatarios", "id", "criado_em", "atualizado_em"]
     list_display = ["id", "razao_social", "nome_fantasia", "cidade", "estado"]
     search_fields = ["razao_social", "nome_fantasia", "cidade"]
-    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_cnpj", "gerenciar_contatos", "gerenciar_administradora", "gerenciar_destinatarios"]
+    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_destinatarios"]
     inlines = [HistoricoCNPJInline, ContatoInline, HistoricoAdministradoraInline]
-
-    @admin.display(description="Administradora")
-    def gerenciar_administradora(self, obj):
-        if not obj or not obj.pk:
-            return "Salve o cliente primeiro."
-        atual = obj.historico_administradoras.filter(data_fim__isnull=True).select_related("administradora").first()
-        return format_html('{} · <a href="{}">Vincular, trocar ou encerrar</a>',
-            str(atual.administradora) if atual else "Sem administradora atual",
-            reverse("admin:clientes_cliente_administradora", args=[obj.pk]))
 
     def administradora_view(self, request, cliente_id):
         obj = self.get_object(request, cliente_id)
@@ -166,26 +173,12 @@ class ClienteAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
             else:
                 self.log_change(request, obj, "Vínculo de administradora: " + form.cleaned_data["acao"])
                 self.message_user(request, "Vínculo atualizado. O histórico foi preservado.")
-                return redirect("admin:clientes_cliente_change", obj.pk)
+                return redirect(reverse("admin:clientes_cliente_change", args=[obj.pk]) + "#historico_administradoras-group")
         atual = obj.historico_administradoras.filter(data_fim__isnull=True).select_related("administradora").first()
         return TemplateResponse(request, "admin/clientes/administradora.html", {
             **self.admin_site.each_context(request), "title": "Administradora do cliente",
             "opts": self.model._meta, "original": obj, "form": form, "atual": atual,
         })
-
-    @admin.display(description="Contatos do condomínio")
-    def gerenciar_contatos(self, obj):
-        if not obj or not obj.pk:
-            return "Salve o cliente para cadastrar contatos."
-        return format_html('<a href="{}?cliente={}">Adicionar contato</a> · <a href="{}?cliente__id__exact={}">Consultar contatos e histórico</a>',
-                           reverse("admin:clientes_contato_add"), obj.pk,
-                           reverse("admin:clientes_contato_changelist"), obj.pk)
-
-    @admin.display(description="CNPJ")
-    def gerenciar_cnpj(self, obj):
-        if not obj or not obj.pk:
-            return "Salve o cliente para cadastrar o CNPJ."
-        return format_html('<a href="{}">Cadastrar / trocar CNPJ</a>', reverse("admin:clientes_cliente_cnpj", args=[obj.pk]))
 
     def get_urls(self):
         return [path("consultar-cnpj/", self.admin_site.admin_view(self.consulta_view), name="clientes_consultar_cnpj"),
@@ -252,7 +245,7 @@ class ClienteAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
                         form.add_error(field, error)
             else:
                 self.message_user(request, "CNPJ registrado. O histórico anterior foi preservado.")
-                return redirect("admin:clientes_cliente_change", obj.pk)
+                return redirect(reverse("admin:clientes_cliente_change", args=[obj.pk]) + "#historico_cnpj-group")
         return TemplateResponse(request, "admin/clientes/trocar_cnpj.html", {
             **self.admin_site.each_context(request), "title": "Cadastrar / trocar CNPJ",
             "opts": self.model._meta, "original": obj, "form": form,

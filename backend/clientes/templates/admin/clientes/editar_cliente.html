@@ -2,4 +2,6 @@
 {% load static %}
 {% block extrahead %}{{ block.super }}
 <script id="consulta-cep-script" src="{% static 'clientes/cep.js' %}" data-url="{% url 'admin:clientes_consultar_cep' %}" defer></script>
+<script src="{% static 'clientes/retorno_cliente.js' %}" defer></script>
+<link rel="stylesheet" href="{% static 'clientes/painel.css' %}">
 {% endblock %}

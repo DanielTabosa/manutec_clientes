@@ -6,7 +6,7 @@
 <form method="post">{% csrf_token %}
   {{ form.as_p }}
   <input type="submit" value="Registrar CNPJ">
-  <a href="{% url 'admin:clientes_cliente_change' original.pk %}">Cancelar</a>
+  <a href="{% url 'admin:clientes_cliente_change' original.pk %}#historico_cnpj-group">Cancelar</a>
 </form>
 <p>A consulta mostra os dados do novo CNPJ para conferência. Esta operação altera apenas o vínculo de CNPJ; os dados do cliente podem ser corrigidos na tela de edição.</p>
 <script id="consulta-cnpj-script" src="{% static 'clientes/cadastro.js' %}" data-url="{% url 'admin:clientes_consultar_cnpj' %}" defer></script>

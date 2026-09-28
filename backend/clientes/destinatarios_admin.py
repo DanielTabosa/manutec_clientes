@@ -15,17 +15,17 @@ from .destinatarios_models import CATEGORIAS
 class ConfigForm(forms.Form):
     numero = forms.IntegerField(widget=forms.HiddenInput, min_value=0)
     vinculo_id = forms.IntegerField(widget=forms.HiddenInput, required=False)
-    modo = forms.ChoiceField(label='Contatos da administradora', choices=[('usar', 'Usar padrão'), ('complementar', 'Complementar padrão'), ('substituir', 'Substituir padrão')])
+    modo = forms.ChoiceField(label='Como escolher os destinatários', choices=[('usar', 'Seguir a lista da administradora'), ('complementar', 'Seguir a lista e adicionar destinatários'), ('substituir', 'Escolher os destinatários deste condomínio')])
 
 
 class ItemForm(forms.Form):
     contato_id = forms.IntegerField(required=False, widget=forms.HiddenInput)
     contato_administradora_id = forms.IntegerField(required=False, widget=forms.HiddenInput)
-    boleto = forms.BooleanField(required=False)
-    nota_fiscal = forms.BooleanField(required=False)
-    laudo = forms.BooleanField(required=False)
-    comunicado = forms.BooleanField(required=False)
-    cobranca = forms.BooleanField(required=False)
+    boleto = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs={'data-categoria': ''}))
+    nota_fiscal = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs={'data-categoria': ''}))
+    laudo = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs={'data-categoria': ''}))
+    comunicado = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs={'data-categoria': ''}))
+    cobranca = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs={'data-categoria': ''}))
     encerrado_local = forms.BooleanField(required=False, label='Encerrar neste condomínio')
 
 

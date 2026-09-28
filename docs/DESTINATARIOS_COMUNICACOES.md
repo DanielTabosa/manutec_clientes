@@ -12,6 +12,10 @@ Referência: 28/09/2026. Implementado no código e validado em ambiente isolado,
 - Limites: SQL direto/bulk contorna validações de pertencimento/encerramento; sem reativação local automática; padrão só reflete contatos globalmente ativos. Integrações e envio continuam fora da entrega. Banco instalado na migration 0007, sem migrations pendentes; dados preexistentes e concessões de permissões preservados.
 
 
+## Apresentação no painel
+
+Os modos aparecem como “Seguir a lista da administradora” (usar), “Seguir a lista e adicionar destinatários” (complementar) e “Escolher os destinatários deste condomínio” (substituir), com explicação da opção selecionada. Selecionar todas marca/desmarca as cinco categorias de cada linha e acompanha a seleção parcial. O encerramento local aparece separadamente como Parar de receber neste condomínio; ao marcar, as categorias ficam desmarcadas e desabilitadas. Isso não altera a regra de preservação de encerramentos já salvos. Ajustes de 28/09 validados em Edge com dados isolados; regressão SQLite passou com 49 testes.
+
 ## Escopo da primeira entrega
 
 Configurar e consultar quem recebe boletos, notas fiscais, laudos, comunicados e cobranças por condomínio. Usar contatos existentes do condomínio e da administradora, inclusive simultaneamente. Cada contato pode receber qualquer combinação das cinco categorias. Não exigir e-mail nem distinguir principal/cópia. Não construir envio, fila, integrações, provedor de e-mail ou WhatsApp nesta entrega.

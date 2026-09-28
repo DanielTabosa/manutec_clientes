@@ -115,7 +115,7 @@ class ClienteAPITests(TransactionTestCase):
         c = Cliente.objects.create(razao_social="Cliente")
         url = f"/admin/clientes/cliente/{c.pk}/administradora/"
         self.assertEqual(self.client.get(url).status_code, 200)
-        self.assertEqual(self.client.post(url, {"acao": "vincular", "administradora": a.pk, "data": "2020-01-01"}).status_code, 302)
+        self.assertRedirects(self.client.post(url, {"acao": "vincular", "administradora": a.pk, "data": "2020-01-01"}), f"/admin/clientes/cliente/{c.pk}/change/#historico_administradoras-group")
         self.assertContains(self.client.get(f"/admin/clientes/cliente/{c.pk}/change/"), "Admin Teste")
         self.assertEqual(self.client.post(url, {"acao": "encerrar", "data": "2019-01-01"}).status_code, 200)
         self.assertEqual(self.client.post(url, {"acao": "encerrar", "data": "2021-01-01"}).status_code, 302)
@@ -316,6 +316,7 @@ class ClienteAPITests(TransactionTestCase):
         self.assertFalse(HistoricoCNPJ.objects.exists())
         response = self.client.post(url, {"cnpj": "12345678000100", "data_inicio": "2020-01-01"})
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, f"/admin/clientes/cliente/{cliente.pk}/change/#historico_cnpj-group")
         response = self.client.get(f"/admin/clientes/cliente/{cliente.pk}/change/")
         self.assertContains(response, "12345678000100")
         self.user.user_permissions.clear()
@@ -589,3 +590,16 @@ class ClienteAPITests(TransactionTestCase):
         p.refresh_from_db()
         self.assertEqual(p.telefone, '99999')
         self.assertEqual(self.client.get(f'/admin/clientes/contatoadministradora/{p.pk}/delete/').status_code, 403)
+
+    def test_contato_adicionado_pelo_cliente_retorna_ao_cadastro(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.autorizar("add_contato", "view_contato", "view_cliente")
+        self.client.force_login(self.user)
+        cliente = Cliente.objects.create(razao_social="Retorno QA")
+        dados = dict(cliente=cliente.pk, nome="Contato QA", funcao="", telefone="", email="",
+                     data_inicio="2020-01-01", data_fim="", _save="Salvar")
+        response = self.client.post(f"/admin/clientes/contato/add/?cliente={cliente.pk}", dados)
+        self.assertRedirects(response, f"/admin/clientes/cliente/{cliente.pk}/change/#contatos-group")
+        response = self.client.post("/admin/clientes/contato/add/", {**dados, "nome": "Outro QA"})
+        self.assertEqual(response.url, "/admin/clientes/contato/")
