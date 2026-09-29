@@ -2,11 +2,13 @@
 
 ## Etapa atual
 
-Usuário informou: autenticação concluída, novos tokens salvos localmente. Autorizou preparar consulta de NFS-e e cobrança da conta de desenvolvimento. Sonda `backend/contaazul_consulta.py` preparada e testada com rede simulada; **não executada contra a conta nesta etapa**. Próximo passo: orientar execução local do comando no README e receber apenas o resumo. Se HTTP 401, renovar com `backend/contaazul_auth.py` (sem --autorizar) antes de repetir. Não pedir tokens no chat.
+Autenticação e renovação concluídas segundo o usuário. Execução real da sonda pelo usuário retornou HTTP 401 inicialmente; após renovar, NFS-e retornou HTTP 500 para 14–28/09/2026 e novamente para somente 28/09/2026. Parâmetros conferidos contra documentação pública. Não presumir token inválido nem concluir indisponibilidade definitiva da API. Diagnóstico isolado executado pelo assistente: um GET de contas a receber para vencimento em 28/09/2026 retornou HTTP 200, lista reconhecida e zero itens. Credenciais carregadas internamente, sem exposição; nenhuma resposta sensível persistida. Nenhuma parcela/cobrança consultada, arquivo baixado ou envio feito.
+
+Próximo passo: confirmar com o usuário se a conta de desenvolvimento contém NFS-e/boletos e qual período usar. Falha fiscal ainda sem causa determinada; acesso financeiro funciona nesse teste. Evitar repetir chamadas fiscais idênticas; se necessário preparar diagnóstico para suporte com dados sanitizados. Não enviar mensagem ao suporte sem autorização. Não pedir tokens no chat.
 
 Sonda: período padrão hoje menos 14 dias até hoje, ajustável com --inicio/--fim (15 datas inclusivas). Primeira página de NFS-e por competência e contas a receber por vencimento, 10 itens cada; primeira parcela e primeira solicitação de cobrança quando presentes. Máximo quatro GETs, sem redirecionamentos/proxy ambiente/retries, timeout e tamanho de resposta limitados. Não segue links, persiste respostas, consulta banco ou envia documentos. Mostra apenas contagens/presença de link. Vazio ou primeira parcela sem cobrança é inconclusivo. O token identifica a empresa; a sonda não garante ambiente de desenvolvimento.
 
-Validação: 14 testes unittest (8 autenticação, 6 consulta) com rede simulada aprovados. Não houve migrations nem validação SQLite/PostgreSQL nesta etapa. Documentos sincronizados: README backend, PROJECT_STATE, preparação do envio. Revisar git log/status para commit desta etapa; commit/push autorizados permanentemente, nunca force push.
+Validação: 14 testes unittest (8 autenticação, 6 consulta) com rede simulada aprovados. Não houve migrations nem validação SQLite/PostgreSQL nesta etapa. Sonda publicada em 66dbfd6. Diagnóstico atual apenas documental, sem novos testes de banco; conteúdo e diff conferidos. Documentos sincronizados: README backend, PROJECT_STATE, preparação do envio. Revisar git log/status para commit desta etapa; commit/push autorizados permanentemente, nunca force push.
 
 ## Decisões e próximos limites
 

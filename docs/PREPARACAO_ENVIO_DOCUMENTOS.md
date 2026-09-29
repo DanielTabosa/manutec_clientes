@@ -1,6 +1,6 @@
 # Preparação do envio de documentos
 
-Referência: conversa de 28/09/2026. Integração ao painel, anexos e envio ainda não implementados. Usuário informou sucesso na autenticação local; sonda de consulta preparada, ainda sem execução autenticada nesta etapa.
+Referência: conversa de 28/09/2026. Integração ao painel, anexos e envio ainda não implementados. Usuário informou sucesso na autenticação local; sonda executada pelo usuário: NFS-e retornou HTTP 500 após renovação. Consulta financeira isolada pelo assistente respondeu HTTP 200, sem itens em 28/09/2026.
 
 ## Informações e preferências confirmadas pelo usuário
 
@@ -49,3 +49,8 @@ A retomada autorizou continuar a investigação. Sonda manual de renovação pre
 Usuário informou autenticação concluída e autorizou preparar a consulta. `backend/contaazul_consulta.py` usa o ACCESS_TOKEN local, sem renovação automática. Consulta primeira página de NFS-e por competência e contas a receber por vencimento, até 10 itens cada, em período de até 15 datas inclusivas. Confere apenas a primeira parcela e sua primeira solicitação de cobrança: no máximo quatro GETs. Sem dados pessoais, IDs ou URLs na saída; sem persistir respostas, seguir links, baixar arquivos ou enviar documentos.
 
 Relação parcela → solicitacoes_cobrancas → id confirmada no [OpenAPI financeiro](https://developers.contaazul.com/_bundle/docs/financial-apis-openapi.json?download=). Ainda exige amostra autenticada; a primeira parcela pode não ter cobrança. Página vazia não prova indisponibilidade. O token determina a empresa acessada: a sonda não comprova automaticamente que ela é de desenvolvimento. Instruções no README do backend.
+
+
+## Diagnóstico autenticado — 28/09/2026
+
+Após HTTP 401, usuário renovou com sucesso. NFS-e retornou HTTP 500 tanto para 14–28/09 quanto para apenas 28/09; reduzir período não resolveu. Assistente executou uma única consulta financeira GET, primeira página de contas a receber com vencimento em 28/09: HTTP 200 e zero itens. Evidência confirma acesso financeiro nesse teste, sem comprovar causa da falha fiscal, existência de documentos ou disponibilidade dos PDFs. Nenhuma alteração, envio, consulta de parcela ou cobrança, nem persistência de resposta. Próximo passo: identificar período com amostra existente na conta de desenvolvimento; não criar documentos para testar.
