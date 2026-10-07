@@ -14,6 +14,7 @@ from dotenv import dotenv_values
 
 ENDPOINT = 'https://api-v2.contaazul.com/oauth/token'
 CONFIG = Path(__file__).resolve().parent.parent / '.venv/contaazul/credenciais.env'
+CONFIG_PRODUCAO = CONFIG.parent / 'producao/credenciais.env'
 
 class SemRedirecionamento(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -129,7 +130,7 @@ def autorizar(path=CONFIG):
             warnings.simplefilter('error', getpass.GetPassWarning)
             link = getpass.getpass('Cole a URL para obter o Codigo de Autorizacao do portal e pressione Enter (entrada oculta): ')
             url, redirect, state = preparar_autorizacao(link, values['CLIENT_ID'])
-            print('Abrindo autorizacao. Use o usuario de teste da aplicacao de desenvolvimento.')
+            print('Abrindo autorizacao. Confira a empresa no Conta Azul antes de autorizar; use a conta ERP do ambiente selecionado.')
             if not webbrowser.open(url):
                 print('FALHA: nao foi possivel abrir o navegador.')
                 return 1
@@ -141,8 +142,15 @@ def autorizar(path=CONFIG):
         return 1
 
 
-if __name__ == '__main__':
+def main(argv=None):
     parser = argparse.ArgumentParser(description='Teste local de autenticacao Conta Azul, sem exibir tokens.')
     parser.add_argument('--autorizar', action='store_true', help='Obter os primeiros tokens pelo navegador e colagem local oculta.')
-    args = parser.parse_args()
-    raise SystemExit(autorizar() if args.autorizar else executar())
+    parser.add_argument('--producao', action='store_true', help='Usar somente a configuracao separada de producao.')
+    args = parser.parse_args(argv)
+    path = CONFIG_PRODUCAO if args.producao else CONFIG
+    print('Configuracao selecionada: ' + ('PRODUCAO. Autorize somente a empresa Manutec.' if args.producao else 'DESENVOLVIMENTO. Use a conta de teste.'))
+    return autorizar(path) if args.autorizar else executar(path)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

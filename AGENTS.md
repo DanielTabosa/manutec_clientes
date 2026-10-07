@@ -5,6 +5,7 @@
 - Não leia/exponha `.env`, credenciais ou dados sensíveis sem necessidade explícita; nunca os inclua em respostas ou commits.
 - Execute testes relacionados às alterações; diferencie validação SQLite de PostgreSQL. Em tarefas só documentais, confira conteúdo, links e diff, sem executar migrations ou gravar no banco.
 - Sincronize os documentos afetados após mudanças relevantes. Ao final de cada sessão relevante, substitua o conteúdo de `SESSION_HANDOFF.md`; não acumule histórico nele.
+- Ao concluir uma tarefa, apresentar o resultado, sugerir o próximo passo concreto e perguntar se pode continuar. Aguardar a resposta antes de iniciar a nova etapa; não interromper a tarefa já autorizada para pedir confirmação de passos internos.
 - Ao concluir cada etapa, revisar o diff, executar as validações pertinentes, fazer commit e push para o remoto configurado. Autorização permanente do usuário; não pedir nova confirmação para essas operações rotineiras. Nunca incluir credenciais ou dados sensíveis. Se houver falha ou conflito, preservar o trabalho e informar; não usar force push sem autorização específica.
 
 ## Processo proporcional

@@ -319,3 +319,52 @@ Usa ACCESS_TOKEN em `.venv/contaazul/credenciais.env`; não imprime nem altera c
 No máximo quatro GETs: primeira página de NFS-e e contas a receber (10 itens cada), primeira parcela e primeira cobrança vinculada, quando existirem. Resumo sem nomes, valores, IDs, URLs ou corpos de erro. Não percorre páginas, segue links, baixa arquivos, importa no banco ou envia documentos. Resultado vazio/primeira parcela sem cobrança é inconclusivo; link presente não comprova PDF. Não há renovação/repetição automática. HTTP 401: executar manualmente `backend/contaazul_auth.py` para renovar, depois repetir a consulta.
 
 Verificação isolada: `.venv\Scripts\python.exe -m unittest discover -s backend -p "test_contaazul*.py"`. São testes com rede simulada, sem SQLite/PostgreSQL. Autenticação/renovação reais concluídas segundo o usuário. NFS-e retornou HTTP 500 nos períodos 14–28/09/2026 e 28/09/2026. Diagnóstico financeiro isolado retornou HTTP 200 e zero itens para vencimento em 28/09/2026; causa fiscal ainda indeterminada.
+
+
+### Configuracao separada de producao
+
+Aplicacao de producao cadastrada e callback https://manutecvalvulas.com.br/contaazul/callback/ publicado pelo usuario via cPanel; pagina exibida segundo ele. CLIENT_ID e CLIENT_SECRET preenchidos pelo usuario em .venv/contaazul/producao/credenciais.env (ignorado no Git, ACL usuario/SYSTEM). Sondas agora aceitam --producao para selecionar esse arquivo; sem a opcao, preservam desenvolvimento. Tokens pendentes ficam na pasta do ambiente selecionado. Usuario executou a autorizacao de producao e apresentou mensagem de sucesso, com tokens salvos localmente. Em seguida executou a sonda com --producao --inicio 2026-09-01 --fim 2026-09-15: sucesso, 10 NFS-e na primeira pagina, 10 contas a receber na primeira pagina e link presente na primeira cobranca consultada. Contagens sao da pagina, nao totais do periodo. Nessa primeira consulta, link nao aberto e arquivos ainda nao comprovados; download de boleto foi validado posteriormente, conforme estado atual documentado. Nenhum documento baixado, alterado ou enviado. Evidencia: saida do terminal compartilhada pelo usuario; assistente nao repetiu chamadas nem leu credenciais. 17 testes com rede simulada aprovados; sem banco SQLite/PostgreSQL, migrations, commit ou push. Selecao de arquivo nao comprova empresa: conferir Manutec no navegador antes de autorizar.
+
+Autorizacao inicial, em terminal interativo na raiz do projeto:
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_auth.py --producao --autorizar
+```
+
+Cole a URL de autorizacao da aplicacao de producao somente no terminal (entrada oculta). Confira a empresa Manutec no navegador. Apos autorizar, copie a URL completa do callback para o mesmo terminal; nao cole no chat. O script valida state/destino e salva tokens localmente. O OAuth concede escopo administrativo; o limite de leitura e da sonda, nao do token.
+
+Renovacao manual: mesmo comando com `--producao`, sem `--autorizar`. Para consulta, usar `backend/contaazul_consulta.py --producao --inicio YYYY-MM-DD --fim YYYY-MM-DD`, somente apos confirmar a conexao e escolher periodo com documentos existentes (ate 15 datas inclusivas). Nao executar automaticamente. Nao usar os comandos sem `--producao` para renovar/consultar a empresa real.
+
+## Download direto de boleto validado — 06/10/2026
+
+`backend/contaazul_boleto.py` adapta a rotina de `C:/dev/manutec-faturamento/src/faturamento/boletos.py`, consultada apenas para leitura. Usa o [GET oficial de PDF da cobrança](https://developers.contaazul.com/docs/charge-apis-openapi/v1/imprimircobrancapdf), terminado em `/cobranca/{id_cobranca}/imprimir`. A investigação anterior do link da cobrança não havia identificado essa operação; a disponibilidade do PDF de boleto agora está comprovada nesta amostra.
+
+Comando, na raiz do projeto:
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_boleto.py --producao --vencimento 2026-10-13 --valor 1500.00
+```
+
+Seleciona uma única conta PENDING por vencimento exato e valor total, consulta todas as solicitações dessa parcela (máximo 10) e exige exatamente uma cobrança REGISTRADO. Uma página cheia de 10 recebíveis, zero/mais de uma correspondência, ausência/ambiguidade de cobrança ou IDs inválidos interrompem a execução. Não é download em lote nem associação definitiva de clientes; data/valor só servem para a amostra inequívoca. Máximo de 13 GETs; nesta amostra foram cinco. Sem renovação automática ou repetição, redirects ou envio de token a outro domínio.
+
+Salva em `.venv/contaazul/<ambiente>/downloads/boleto-AAAAMMDD.pdf` (desenvolvimento sem subpasta de ambiente). Na produção desta amostra: `.venv/contaazul/producao/downloads/boleto-20261013.pdf`, ignorado pelo Git, dentro do diretório protegido já existente. Arquivo existente bloqueia antes da rede. Grava temporário e publica por hard link exclusivo no mesmo volume, preservando destino concorrente; limpa temporário em falhas. Limites: JSON 1 MiB e PDF 10 MiB; tipo de conteúdo, assinatura PDF e marcador final conferidos. O comando não modifica cobranças nem o banco.
+
+Validação: 29 testes da integração com rede simulada (12 novos de download), ajuda e diff conferidos. Nenhum teste SQLite/PostgreSQL ou migration pertinente a esta rotina isolada. Download real autorizado: um PDF de 98.897 bytes, uma página, sem criptografia, zero avisos em `pypdf` estrito. Texto normalizado igual ao PDF manual; valor/vencimento presentes. Hashes diferentes, portanto não são idênticos byte a byte; causa da diferença não investigada. Comparação feita em memória, sem expor texto ou identificadores. PDF não incluído no Git. Projeto de referência preservado.
+
+Integração ao painel, associação por cliente, anexação/envio e PDF/XML de NFS-e continuam pendentes. Conclusão segue a autorização de commit/push das instruções atuais do projeto, reapresentadas em 07/10/2026.
+
+## Conferência local de NFS-e — 07/10/2026
+
+Implementado `backend/contaazul_nfse.py`: lê ZIP existente, sem extrair, renomear, copiar ou modificar arquivos. Pareia PDF/XML pelo nome-base, recusa duplicidades e exige número da NFS-e, DPS/RPS, documento do tomador e valor. Compara com a listagem pública do Conta Azul: status EMITIDA e correspondência única com todos os campos iguais. Não associa ao cadastro do projeto, não consulta contratos e não grava no banco. Dados financeiros usam Decimal.
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_nfse.py --producao --competencia 2026-10 --zip "C:\Users\didit\Downloads\NFSe-10-2026 (2).zip"
+```
+
+O comando sempre faz apenas conferência; não existe modo de importação. Ambiente padrão é desenvolvimento; `--producao` não recua para outro ambiente. Saída por índices anônimos dos pares, contagens e motivos; sem nomes, documentos, valores ou números de notas. Retornos: 0 = ao menos uma nota e todos os pares conferidos; 2 = pendências/nenhum par reconhecido; 1 = falha técnica ou consulta incompleta. Em caso de falha da API, não apresenta correspondências parciais como concluídas.
+
+Limites: ZIP compactado e soma descompactada até 100 MiB; até 2.000 entradas; XML 2 MiB/PDF 10 MiB por arquivo. XML UTF-8 sem DTD/entidades declaradas, caminhos únicos para campos essenciais; formatos reconhecidos: NFSe do namespace nacional e Nfse no namespace ABRASF com estrutura infNFSe/DPS, observada no ZIP fornecido. Outros formatos ficam pendentes. PDF conferido somente por assinatura, marcador final e nome do par; conteúdo textual do PDF, assinatura digital e autenticidade fiscal não são validados.
+
+A [listagem oficial de NFS-e](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/obternotasfiscaisservicoporfiltro) é consultada em janelas consecutivas de até 15 datas inclusivas. Até 10 páginas de 50 registros por janela (máximo 30 GETs/mês); página cheia ao atingir limite interrompe, sem aceitar resultado truncado. JSON limitado a 2 MiB por resposta; sem redirects, renovação ou repetição automática. HTTP 401 exige renovação manual do mesmo ambiente.
+
+Validação: 45 testes da integração passaram (16 novos de NFS-e), com ZIPs fictícios e rede simulada. ZIP real informado pelo usuário: 139 pares aptos localmente, nenhuma pendência local, hash preservado antes/depois. Competência outubro/2026 inferida do nome do ZIP e comunicada ao usuário. Comparação real concluída após renovação manual confirmada pelo usuário: 136 notas reconhecidas e três pendentes por status diferente de EMITIDA. Consulta adicional somente de leitura confirmou que as três estão com status CANCELAMENTO_MANUAL. Permanecem fora das reconhecidas; nenhuma alteração de regra ou estado fiscal. ZIP preservado por hash antes/depois. A execução anterior retornou 401 e foi interrompida sem repetição automática; a repetição posterior foi manual após renovação. Sem testes SQLite/PostgreSQL ou migrations, pois o script não usa banco.

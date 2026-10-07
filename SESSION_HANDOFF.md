@@ -1,31 +1,55 @@
-# Retomada — 28/09/2026
+# Retomada — conferência de NFS-e concluída
 
-## Etapa atual
+## Próximo passo
 
-Autenticação e renovação concluídas segundo o usuário. Execução real da sonda pelo usuário retornou HTTP 401 inicialmente; após renovar, NFS-e retornou HTTP 500 para 14–28/09/2026 e novamente para somente 28/09/2026. Parâmetros conferidos contra documentação pública. Não presumir token inválido nem concluir indisponibilidade definitiva da API. Diagnóstico isolado executado pelo assistente: um GET de contas a receber para vencimento em 28/09/2026 retornou HTTP 200, lista reconhecida e zero itens. Credenciais carregadas internamente, sem exposição; nenhuma resposta sensível persistida. Nenhuma parcela/cobrança consultada, arquivo baixado ou envio feito.
+Concluída a etapa autorizada de conferência local de ZIP e comparação com a API. Propor ao usuário uma prévia de associação dos documentos aos clientes cadastrados, com critérios e ambiguidades explícitos, ainda sem importar, gravar ou enviar. Aguardar autorização para essa nova etapa. Não iniciar lote, associação definitiva, anexação ou envio automaticamente.
 
-Próximo passo: confirmar com o usuário se a conta de desenvolvimento contém NFS-e/boletos e qual período usar. Falha fiscal ainda sem causa determinada; acesso financeiro funciona nesse teste. Evitar repetir chamadas fiscais idênticas; se necessário preparar diagnóstico para suporte com dados sanitizados. Não enviar mensagem ao suporte sem autorização. Não pedir tokens no chat.
+Preferência permanente no AGENTS.md: ao terminar cada tarefa, apresentar resultado, sugerir próximo passo concreto e perguntar se pode continuar. Não reconfirmar passos internos da etapa já autorizada. Processo proporcional: leituras pontuais, testes pertinentes, sem subagentes desnecessários.
 
-Sonda: período padrão hoje menos 14 dias até hoje, ajustável com --inicio/--fim (15 datas inclusivas). Primeira página de NFS-e por competência e contas a receber por vencimento, 10 itens cada; primeira parcela e primeira solicitação de cobrança quando presentes. Máximo quatro GETs, sem redirecionamentos/proxy ambiente/retries, timeout e tamanho de resposta limitados. Não segue links, persiste respostas, consulta banco ou envia documentos. Mostra apenas contagens/presença de link. Vazio ou primeira parcela sem cobrança é inconclusivo. O token identifica a empresa; a sonda não garante ambiente de desenvolvimento.
+## Resultado confirmado em 07/10/2026
 
-Validação: 14 testes unittest (8 autenticação, 6 consulta) com rede simulada aprovados. Não houve migrations nem validação SQLite/PostgreSQL nesta etapa. Sonda publicada em 66dbfd6. Diagnóstico atual apenas documental, sem novos testes de banco; conteúdo e diff conferidos. Documentos sincronizados: README backend, PROJECT_STATE, preparação do envio. Revisar git log/status para commit desta etapa; commit/push autorizados permanentemente, nunca force push.
+Usuário autorizou implementar conferência de NFS-e e indicou `C:/Users/didit/Downloads/NFSe-10-2026 (2).zip`; outubro/2026 inferido do nome e comunicado. ZIP contém 139 PDFs + 139 XMLs. Todos os 139 pares passaram nas verificações locais; arquivo preservado por hash antes/depois.
 
-## Decisões e próximos limites
+Primeira comparação retornou HTTP 401 e parou sem repetição. Verificada somente existência de tokens-pendentes.env: ausente. Usuário renovou manualmente e informou sucesso. Repetição manual concluída: **136 notas reconhecidas, três pendentes por status**. Consulta adicional agregada confirmou **136 EMITIDA e três CANCELAMENTO_MANUAL**. Somente EMITIDA é aceita; as três permanecem pendentes sem alteração de regra ou documento. Nenhum número de nota, CNPJ, nome ou valor exposto no chat; nenhuma resposta da API persistida. Não repetir consultas para confirmar esse resultado novamente.
 
-NFS-e e boletos emitidos no Conta Azul; Iugu é hipótese do usuário. Preferência API, arquivo local como alternativa. Remetente domínio próprio Manutec via cPanel; endereço/SMTP ainda pendentes. Botão Anexar, conferência antes de enviar, prevenção de duplicidade e registro do resultado são propostas; não implementadas nem integralmente aprovadas. IA e pasta monitorada adiadas. Detalhes/fontes em docs/PREPARACAO_ENVIO_DOCUMENTOS.md.
+## Código e limites
 
-API pública confirma listagem NFS-e, sem arquivo/link no contrato; download de NF-e por chave não comprova NFS-e. OpenAPI financeiro documenta parcela → solicitacoes_cobrancas → id; cobrança retorna URL/status, não comprova PDF. Não criar cobranças/notas para testar. Próxima etapa após amostra: decidir obtenção dos arquivos com base no resultado; explicar e pedir autorização ao usuário para avançar.
+`backend/contaazul_nfse.py` e `backend/test_contaazul_nfse.py`: somente leitura do ZIP e GETs na API, sem extração/gravação/renomeação, sem banco, contratos ou envio. Pareia PDF/XML por nome-base, recusa duplicidade, exige número, RPS, tomador e valor Decimal. XML UTF-8 sem DTD/entidades; suporta namespace nacional e estrutura infNFSe/DPS no namespace ABRASF observada no ZIP real. Número único/status EMITIDA/RPS/documento/valor devem conferir com a API.
 
-## Acesso e cuidados
+PDF tem apenas assinatura, marcador final e nome do par conferidos; conteúdo textual do PDF, assinatura digital e autenticidade fiscal não são validados. Não prometer que o conteúdo de cada PDF foi auditado.
 
-Credenciais exclusivamente em `.venv/contaazul/credenciais.env`, ignorado pelo Git, ACL usuário/SYSTEM. Não ler/expor valores. Authorization Basic apareceu em captura; recomendação de troca apresentada, usuário decidiu manter. Não extrair da imagem. O cURL do portal tinha REFRESH_TOKEN_GERADO como exemplo, não token real. Fluxo --autorizar já usado com sucesso segundo o usuário; não repetir como pendência. Script auth valida destino/state e salva access/refresh de forma atômica. Se existir tokens-pendentes.env, recuperar localmente antes de renovar. Escopo OAuth administrativo: somente leitura é limite da implementação.
+Limites: ZIP 100 MiB compactado e soma descompactada, até 2.000 entradas; XML 2 MiB/PDF 10 MiB; JSON 2 MiB por resposta. Janelas de até 15 datas inclusivas, até 10 páginas de 50 itens por janela (máximo 30 GETs/mês). Paginação incompleta interrompe sem falso sucesso. Sem redirects/renovação/repetição automática. Retornos: 0 todas reconhecidas com pelo menos uma, 2 pendências/nenhuma, 1 falha técnica. Console usa índices anônimos; durante teste real foi mostrado apenas resumo/motivos agregados.
+
+Comando (não repetir sem propósito):
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_nfse.py --producao --competencia 2026-10 --zip "C:\Users\didit\Downloads\NFSe-10-2026 (2).zip"
+```
+
+45 testes Conta Azul passaram (17 autenticação/consulta/ambientes, 12 boleto, 16 NFS-e). São testes com rede simulada e ZIPs fictícios; nenhum SQLite/PostgreSQL ou migration foi necessário. Ajuda e diff conferidos. Referência `C:/dev/manutec-faturamento` consultada apenas para leitura; nenhum arquivo ou credencial desse projeto alterado/executado/lido indevidamente.
+
+## Boleto já concluído
+
+`backend/contaazul_boleto.py` baixa um boleto existente pela operação oficial GET `/v1/financeiro/eventos-financeiros/contas-a-receber/cobranca/{id_cobranca}/imprimir`. Única conta PENDING por vencimento/valor e única cobrança REGISTRADO; página cheia com 10 recebíveis ou seleção ambígua interrompe. Até 10 solicitações por parcela; máximo 13 GETs. JSON 1 MiB/PDF 10 MiB. Arquivo existente interrompe antes da rede; publicação por hard link exclusivo preserva concorrência. Sem emissão/reemissão/cancelamento/pagamento/envio.
+
+Teste autorizado do boleto de R$ 1.500,00, vencimento 13/10/2026, concluído em 06/10: conta única entre cinco, duas cobranças (REGISTRADO e CANCELADO). PDF salvo em `.venv/contaazul/producao/downloads/boleto-20261013.pdf`, protegido/ignorado. Uma página, 98.897 bytes, leitura estrita pypdf sem avisos. Texto normalizado igual ao download manual e valor/vencimento presentes; bytes diferem, motivo não investigado. Não baixar/remover novamente para repetir teste.
+
+A investigação anterior do navegador fica superada pelo download direto comprovado. Primeira amostra QUITADO exibiu erro de link, sem causa raiz estabelecida. Sonda temporária `.venv/contaazul/producao/verificar_link.py` tem período fixo e escolhe primeira parcela; não usar preventivamente.
+
+## Acesso, dados e Git
+
+Configurações ignoradas e protegidas: desenvolvimento `.venv/contaazul/credenciais.env`; produção `.venv/contaazul/producao/credenciais.env`. `--producao` obrigatório para conta real; sem fallback. Não exibir ou ler valores de credenciais. Token determina a empresa, flag seleciona arquivo. Autorização inicial de produção já concluída; não repeti-la como pendência. HTTP 401: orientar renovação manual com `backend/contaazul_auth.py --producao`, conferindo previamente apenas existência de tokens-pendentes.env; nunca sobrescrever tokens pendentes.
+
+Callback de produção publicado pelo usuário via cPanel: https://manutecvalvulas.com.br/contaazul/callback/ . Configuração de desenvolvimento preservada; conta de teste vazia. Erro fiscal HTTP 500 anterior em desenvolvimento não tem causa comprovada. Não criar documentos para testes.
+
+As instruções atuais reapresentadas pelo usuário em 07/10/2026 determinam revisar, testar, commitar e fazer push ao concluir a etapa, sem nova confirmação. A suspensão da pausa anterior constava de documentos antigos; foi conciliada com a orientação atual. Não incluir ZIP/PDF, credenciais ou respostas da API no Git. Branch main, remoto origin. Consultar git log/status para resultado da publicação desta etapa; não registrar sucesso de push antecipadamente.
+
+Arquivos da etapa acumulada: AGENTS.md, PROJECT_STATE.md, SESSION_HANDOFF.md, backend/README.md, docs/PREPARACAO_ENVIO_DOCUMENTOS.md; auth/consulta com seleção de produção; novos contaazul_boleto.py, contaazul_nfse.py e testes de ambientes/boleto/NFS-e. Alterações anteriores do projeto foram preservadas. Fonte de referência não modificada.
 
 ## Projeto preservado
 
-Painel de destinatários concluído e aceito pelo usuário, inclusive lista própria salva. Não repetir aceitação. Cinco categorias independentes, revisões, encerramento local/global, sem reativação automática nem envio. Regras em docs/DESTINATARIOS_COMUNICACOES.md. Migration 0007 aplicada ao PostgreSQL instalado, com legado vazio e dados/concessões preservados. UX: rótulos didáticos, selecionar/desmarcar categorias, ações junto às tabelas e retorno ao cliente/rolagem após salvar.
+Painel de destinatários concluído e aceito, incluindo lista própria do usuário. Cinco categorias independentes, revisões e encerramento local/global, sem reativação automática nem envio. Migration 0007 aplicada ao PostgreSQL instalado com legado vazio e dados/concessões preservados. Validações anteriores: 49 testes SQLite, 11 verificações PostgreSQL isoladas e inspeção visual; não confundir com validações desta integração. Não alterar cliente usado na aceitação. Servidor localhost:8000 deve ser conferido antes de uso.
 
-Validação anterior: 49 testes SQLite e inspeção visual aprovada; 11 verificações PostgreSQL isoladas anteriores, não equivalentes a testes desta sonda. Servidor localhost:8000, último PID conhecido 31044 (--noreload); conferir antes de depender dele. Não alterar dados do cliente usado na aceitação.
+Backup protegido `.venv/backups/pre_0007_20260928/pre_0007.dump`, hash em verification.json; preservar antes de recriar .venv. Recuperação somente em banco vazio separado, conforme README; não reverter migration automaticamente.
 
-Backup protegido: `.venv/backups/pre_0007_20260928/pre_0007.dump`, hash/evidência em verification.json. Preservar antes de recriar .venv. Recuperação em banco vazio separado conforme README; não reverter migration automaticamente.
-
-Processo proporcional acordado: leituras pontuais, testes pertinentes, sem subagentes desnecessários. Usuário iniciante: paciência e uma instrução por vez. Rotina de commit/push autorizada em AGENTS.md. Ambiente teve falha do sandbox; comandos escalonados e git -c safe.directory=C:/dev/manutec-clientes. Não expor .env. Substituir este handoff ao fim da próxima sessão relevante.
+Obtenção direta de arquivo NFS-e via API ainda não comprovada: fluxo atual usa ZIP fornecido. Associação entre documentos e cadastro, integração ao painel, anexos, prevenção de duplicidade, conferência de destinatários e envio continuam por definir/implementar. SMTP de domínio próprio via cPanel é direção, dados pendentes. IA e pasta monitorada adiadas.

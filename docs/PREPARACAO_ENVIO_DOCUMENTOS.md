@@ -1,6 +1,50 @@
 # Preparação do envio de documentos
 
-Referência: conversa de 28/09/2026. Integração ao painel, anexos e envio ainda não implementados. Usuário informou sucesso na autenticação local; sonda executada pelo usuário: NFS-e retornou HTTP 500 após renovação. Consulta financeira isolada pelo assistente respondeu HTTP 200, sem itens em 28/09/2026.
+Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado diretamente pela API pública. Integração ao painel, anexos e envio ainda não implementados. Evidências anteriores estão preservadas abaixo como contexto datado.
+
+## Download direto de boleto validado — 06/10/2026
+
+`backend/contaazul_boleto.py` adapta a rotina de `C:/dev/manutec-faturamento/src/faturamento/boletos.py`, consultada apenas para leitura. Usa o [GET oficial de PDF da cobrança](https://developers.contaazul.com/docs/charge-apis-openapi/v1/imprimircobrancapdf), terminado em `/cobranca/{id_cobranca}/imprimir`. A investigação anterior do link da cobrança não havia identificado essa operação; a disponibilidade do PDF de boleto agora está comprovada nesta amostra.
+
+Comando, na raiz do projeto:
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_boleto.py --producao --vencimento 2026-10-13 --valor 1500.00
+```
+
+Seleciona uma única conta PENDING por vencimento exato e valor total, consulta todas as solicitações dessa parcela (máximo 10) e exige exatamente uma cobrança REGISTRADO. Uma página cheia de 10 recebíveis, zero/mais de uma correspondência, ausência/ambiguidade de cobrança ou IDs inválidos interrompem a execução. Não é download em lote nem associação definitiva de clientes; data/valor só servem para a amostra inequívoca. Máximo de 13 GETs; nesta amostra foram cinco. Sem renovação automática ou repetição, redirects ou envio de token a outro domínio.
+
+Salva em `.venv/contaazul/<ambiente>/downloads/boleto-AAAAMMDD.pdf` (desenvolvimento sem subpasta de ambiente). Na produção desta amostra: `.venv/contaazul/producao/downloads/boleto-20261013.pdf`, ignorado pelo Git, dentro do diretório protegido já existente. Arquivo existente bloqueia antes da rede. Grava temporário e publica por hard link exclusivo no mesmo volume, preservando destino concorrente; limpa temporário em falhas. Limites: JSON 1 MiB e PDF 10 MiB; tipo de conteúdo, assinatura PDF e marcador final conferidos. O comando não modifica cobranças nem o banco.
+
+Validação: 29 testes da integração com rede simulada (12 novos de download), ajuda e diff conferidos. Nenhum teste SQLite/PostgreSQL ou migration pertinente a esta rotina isolada. Download real autorizado: um PDF de 98.897 bytes, uma página, sem criptografia, zero avisos em `pypdf` estrito. Texto normalizado igual ao PDF manual; valor/vencimento presentes. Hashes diferentes, portanto não são idênticos byte a byte; causa da diferença não investigada. Comparação feita em memória, sem expor texto ou identificadores. PDF não incluído no Git. Projeto de referência preservado.
+
+Integração ao painel, associação por cliente, anexação/envio e PDF/XML de NFS-e continuam pendentes. Conclusão segue a autorização de commit/push das instruções atuais do projeto, reapresentadas em 07/10/2026.
+
+## Conferência local de NFS-e — 07/10/2026
+
+Implementado `backend/contaazul_nfse.py`: lê ZIP existente, sem extrair, renomear, copiar ou modificar arquivos. Pareia PDF/XML pelo nome-base, recusa duplicidades e exige número da NFS-e, DPS/RPS, documento do tomador e valor. Compara com a listagem pública do Conta Azul: status EMITIDA e correspondência única com todos os campos iguais. Não associa ao cadastro do projeto, não consulta contratos e não grava no banco. Dados financeiros usam Decimal.
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_nfse.py --producao --competencia 2026-10 --zip "C:\Users\didit\Downloads\NFSe-10-2026 (2).zip"
+```
+
+O comando sempre faz apenas conferência; não existe modo de importação. Ambiente padrão é desenvolvimento; `--producao` não recua para outro ambiente. Saída por índices anônimos dos pares, contagens e motivos; sem nomes, documentos, valores ou números de notas. Retornos: 0 = ao menos uma nota e todos os pares conferidos; 2 = pendências/nenhum par reconhecido; 1 = falha técnica ou consulta incompleta. Em caso de falha da API, não apresenta correspondências parciais como concluídas.
+
+Limites: ZIP compactado e soma descompactada até 100 MiB; até 2.000 entradas; XML 2 MiB/PDF 10 MiB por arquivo. XML UTF-8 sem DTD/entidades declaradas, caminhos únicos para campos essenciais; formatos reconhecidos: NFSe do namespace nacional e Nfse no namespace ABRASF com estrutura infNFSe/DPS, observada no ZIP fornecido. Outros formatos ficam pendentes. PDF conferido somente por assinatura, marcador final e nome do par; conteúdo textual do PDF, assinatura digital e autenticidade fiscal não são validados.
+
+A [listagem oficial de NFS-e](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/obternotasfiscaisservicoporfiltro) é consultada em janelas consecutivas de até 15 datas inclusivas. Até 10 páginas de 50 registros por janela (máximo 30 GETs/mês); página cheia ao atingir limite interrompe, sem aceitar resultado truncado. JSON limitado a 2 MiB por resposta; sem redirects, renovação ou repetição automática. HTTP 401 exige renovação manual do mesmo ambiente.
+
+Validação: 45 testes da integração passaram (16 novos de NFS-e), com ZIPs fictícios e rede simulada. ZIP real informado pelo usuário: 139 pares aptos localmente, nenhuma pendência local, hash preservado antes/depois. Competência outubro/2026 inferida do nome do ZIP e comunicada ao usuário. Comparação real concluída após renovação manual confirmada pelo usuário: 136 notas reconhecidas e três pendentes por status diferente de EMITIDA. Consulta adicional somente de leitura confirmou que as três estão com status CANCELAMENTO_MANUAL. Permanecem fora das reconhecidas; nenhuma alteração de regra ou estado fiscal. ZIP preservado por hash antes/depois. A execução anterior retornou 401 e foi interrompida sem repetição automática; a repetição posterior foi manual após renovação. Sem testes SQLite/PostgreSQL ou migrations, pois o script não usa banco.
+
+## Avaliação da referência de NFS-e — 06/10/2026
+
+Consulta somente de leitura a `C:/dev/manutec-faturamento/src/faturamento/notas.py` e `tests/test_notas.py`, autorizada pelo usuário. Nenhum arquivo desse projeto alterado ou executado; nenhum ZIP real, credencial ou banco consultado nesta avaliação.
+
+A rotina lê um ZIP já baixado do painel, pareia PDF/XML pelo nome-base, extrai número da NFS-e, DPS/RPS, documento do tomador e valor do XML nacional. Cruza os dados com a listagem de NFS-e e liga `id_venda` à prévia de contratos do outro projeto. Aceita status EMITIDA, separa divergências e mais de uma nota por contrato; grava sem sobrescrever. O modo simular evita gravação de PDFs, mas consulta a API. Isso não demonstra download automático de NFS-e pela API.
+
+Reaproveitar a leitura do par PDF/XML e a conferência por identificadores. Não transferir automaticamente a associação por contratos, nomes de arquivos, diretório OneDrive ou regras de envio para nosso cadastro. Pontos a corrigir na adaptação: valores com Decimal e campos obrigatórios (a referência permite ignorar algumas verificações quando o valor/RPS está ausente); rejeitar pares ambíguos/nomes duplicados no ZIP em vez de substituir silenciosamente; limitar volume total e leitura dos arquivos/XML; formar janelas de até 15 datas inclusivas (a referência consulta 16–31 em meses de 31 dias, intervalo de 16 datas). Os testes consultados usam rede fictícia; não foram executados nem validam esses casos adicionais.
+
+Proposta posteriormente aprovada e implementada, conforme estado atual acima: versão local de conferência de ZIP, sem banco, associação automática ao cliente ou envio. Verificar campos obrigatórios e pares PDF/XML; consultar NFS-e em período explícito limitado; apresentar resumo de correspondências e pendências sem expor dados pessoais. Testar com arquivos fictícios e depois com um ZIP existente indicado pelo usuário. Validação real depende desse arquivo; não solicitar nova emissão de nota. Salvar/organizar os documentos e integrar ao painel ficam para etapa definida após a conferência.
 
 ## Informações e preferências confirmadas pelo usuário
 
@@ -29,7 +73,7 @@ A [consulta de NFS-e](https://developers.contaazul.com/open-api-docs/open-api-in
 
 No [OpenAPI fiscal](https://developers.contaazul.com/_bundle/open-api-docs/open-api-invoice.json?download=), NotaFiscalServico contém identificação, documento do cliente, venda, competência, valor e status, mas não campo de PDF, XML ou URL. Portanto a listagem é documentada; obtenção do arquivo NFS-e pela API continua não comprovada. O download de NF-e por chave não deve ser assumido como solução para NFS-e.
 
-Cobranças: GET /v1/financeiro/eventos-financeiros/contas-a-receber/cobranca/{id_cobranca} fornece URL e status; ainda falta verificar em amostra real se o link permite obter PDF, se exige sessão e como relacionar a cobrança à venda/parcela. Não gerar cobrança para fazer esse teste.
+Cobranças: GET /v1/financeiro/eventos-financeiros/contas-a-receber/cobranca/{id_cobranca} fornece URL e status. Relação parcela → solicitações confirmada em produção; usuário confirmou visualização do boleto pelo link da cobrança REGISTRADO em 06/10/2026. Usuário também confirmou download manual pelo novo link aberto nessa página. Arquivo salvo validado estruturalmente como PDF de uma página, sem avisos no leitor estrito. Download direto autenticado pela API pública comprovado pela nova rotina, conforme seção atual acima; não depende do navegador. Não gerar cobrança para fazer esse teste.
 
 ## Preparação do acesso
 
@@ -39,7 +83,7 @@ Antes de criar aplicação ou iniciar OAuth, confirmar se o usuário já tem cad
 
 ## Próxima etapa proposta
 
-Acesso e autenticação concluídos segundo o usuário. Próximo passo: validar uma NFS-e e uma cobrança existentes em período restrito, sem emitir, alterar ou enviar documentos. Registrar se os arquivos são realmente obtidos; se a NFS-e continuar sem download público documentado, consultar suporte oficial ou usar anexação local, sem recorrer à API privada.
+PDF de boleto existente obtido diretamente pela API pública. Definir com o usuário a próxima etapa: identificação e associação dos documentos aos clientes para integração ao painel, ou obtenção das NFS-e. Para NFS-e, avaliar suporte oficial ou anexação local se não houver download público documentado. Não implementar envio, lote ou novas regras de associação antes de definir o escopo.
 
 A retomada autorizou continuar a investigação. Sonda manual de renovação preparada em backend/contaazul_auth.py, com configuração local protegida e oito testes simulados. O cURL do portal continha apenas o marcador REFRESH_TOKEN_GERADO; não comprovou fornecimento de Refresh Token real. Acrescentado --autorizar para primeira troca guiada de código; usuário informou execução concluída com tokens salvos localmente. Integração ao painel e envio ainda não foram executados. Usuário quer progresso por etapas: ao concluir uma, explicar a próxima e pedir autorização para avançar. Commit e push rotineiros têm autorização permanente em AGENTS.md.
 
@@ -53,4 +97,21 @@ Relação parcela → solicitacoes_cobrancas → id confirmada no [OpenAPI finan
 
 ## Diagnóstico autenticado — 28/09/2026
 
-Após HTTP 401, usuário renovou com sucesso. NFS-e retornou HTTP 500 tanto para 14–28/09 quanto para apenas 28/09; reduzir período não resolveu. Assistente executou uma única consulta financeira GET, primeira página de contas a receber com vencimento em 28/09: HTTP 200 e zero itens. Evidência confirma acesso financeiro nesse teste, sem comprovar causa da falha fiscal, existência de documentos ou disponibilidade dos PDFs. Nenhuma alteração, envio, consulta de parcela ou cobrança, nem persistência de resposta. Próximo passo: identificar período com amostra existente na conta de desenvolvimento; não criar documentos para testar.
+Após HTTP 401, usuário renovou com sucesso. NFS-e retornou HTTP 500 tanto para 14–28/09 quanto para apenas 28/09; reduzir período não resolveu. Assistente executou uma única consulta financeira GET, primeira página de contas a receber com vencimento em 28/09: HTTP 200 e zero itens. Evidência confirma acesso financeiro nesse teste, sem comprovar causa da falha fiscal, existência de documentos ou disponibilidade dos PDFs. Nenhuma alteração, envio, consulta de parcela ou cobrança, nem persistência de resposta. Usuário confirmou que a conta de desenvolvimento está vazia. Não criar documentos para testar. Conta vazia é compatível com a lista financeira vazia, mas não determina a causa do erro fiscal.
+
+
+## Decisão para a próxima sessão
+
+Usuário autorizou preparar o acesso à conta real da Manutec, exclusivamente para consultas limitadas, sem emitir, alterar ou enviar documentos. Preparacao, autorizacao e primeira consulta de producao concluidas segundo saida apresentada pelo usuario, conforme estado abaixo. Conferir documentação vigente da aplicação de produção e OAuth; não assumir que a aplicação de desenvolvimento pode acessar a empresa real. Preservar configuração de teste, separar ambientes e manter segredos fora do chat/Git. Após conectar a conta correta, selecionar período com documento existente para validar disponibilidade dos arquivos.
+
+Na pausa anterior, commit/push ficaram suspensos. As instruções atuais reapresentadas em 07/10/2026 determinam commit/push ao concluir cada etapa. Retomar pelo estado atual em SESSION_HANDOFF.md.
+
+## Estado da preparacao de producao
+
+Aplicacao de producao cadastrada e callback https://manutecvalvulas.com.br/contaazul/callback/ publicado pelo usuario via cPanel; pagina exibida segundo ele. CLIENT_ID e CLIENT_SECRET preenchidos pelo usuario em .venv/contaazul/producao/credenciais.env (ignorado no Git, ACL usuario/SYSTEM). Sondas agora aceitam --producao para selecionar esse arquivo; sem a opcao, preservam desenvolvimento. Tokens pendentes ficam na pasta do ambiente selecionado. Usuario executou a autorizacao de producao e apresentou mensagem de sucesso, com tokens salvos localmente. Em seguida executou a sonda com --producao --inicio 2026-09-01 --fim 2026-09-15: sucesso, 10 NFS-e na primeira pagina, 10 contas a receber na primeira pagina e link presente na primeira cobranca consultada. Contagens sao da pagina, nao totais do periodo. Nessa primeira consulta, link nao aberto e arquivos ainda nao comprovados; download de boleto foi validado posteriormente, conforme estado atual documentado. Nenhum documento baixado, alterado ou enviado. Evidencia: saida do terminal compartilhada pelo usuario; assistente nao repetiu chamadas nem leu credenciais. 17 testes com rede simulada aprovados; sem banco SQLite/PostgreSQL, migrations, commit ou push. Selecao de arquivo nao comprova empresa: conferir Manutec no navegador antes de autorizar.
+
+Comandos e procedimento em [README do backend](../backend/README.md#configuracao-separada-de-producao).
+
+### Inspecao limitada do link de cobranca
+
+Verificacao do link autorizada pelo usuario e executada pelo assistente: sonda temporaria .venv/contaazul/producao/verificar_link.py obteve uma cobranca existente no periodo 01–15/09/2026. Destino HTTPS faturas.contaazul.com com fragmento. GET publico separado, sem Authorization/cookies/proxy e sem seguir redirects: HTTP 200, text/html, sem assinatura PDF, zero links .pdf no HTML inicial, dois scripts, zero formularios. Isso confirma pagina HTML acessivel, nao PDF nem ausencia de login apos carregar JavaScript. Nenhuma resposta/URL sensivel persistida; token carregado internamente sem exposicao. Para abrir a pagina, a sonda repetiu os tres GETs financeiros com --abrir e chamou navegador padrao; abertura reportada com sucesso. Total desta investigacao: seis GETs financeiros e um GET publico pela sonda, alem do carregamento normal do navegador. Nenhuma emissao, alteracao, pagamento, envio ou download de arquivo solicitado. Inspecao visual automatizada bloqueada: cua.getState falhou duas vezes com trusted Node process exited unexpectedly; nao houve leitura visual da pagina. Usuario informou que a pagina aberta exibe "Por favor, tente novamente. Nao foi possivel obter os dados" e que o botao retorna ao mesmo erro. Diagnostico adicional autorizado: tres GETs financeiros pelo modo --status da sonda temporaria, sem reabrir link, retornaram status QUITADO e uma unica solicitacao de cobranca na primeira parcela. Portanto a amostra esta quitada; nao ha evidencia de que esse status cause o erro da pagina. Nenhum PDF obtido. Na retomada de 06/10/2026, usuario informou vencimento e valor de uma amostra em aberto. A consulta inicial retornou 401; apos renovacao manual confirmada, a API retornou cinco recebiveis PENDING no dia, com uma unica correspondencia por valor. A parcela possui duas solicitacoes: REGISTRADO e CANCELADO. Foi aberta somente a URL da unica REGISTRADO; usuario confirmou que o boleto apareceu. GET publico previo retornou HTTP 200, text/html, sem assinatura PDF. Assim, o link retornado pela API funcionou para essa amostra. Usuario confirmou depois que a pagina abre outro link para baixar o boleto e que concluiu o download, escolhendo o local no dialogo de salvar. Usuario forneceu o caminho local e o assistente validou o arquivo em leitura: 98.897 bytes, assinatura e marcador de fim de PDF presentes; pypdf em modo estrito leu uma pagina sem criptografia, com dimensoes e fluxo de conteudo validos, zero avisos. PDF estruturalmente valido; dados financeiros e autenticidade bancaria nao inspecionados. Confirmada obtencao manual de PDF pelo fluxo iniciado no link da API. Posteriormente, download direto pela API publica comprovado nesta amostra, sem navegador, conforme secao atual acima. A causa do erro da amostra quitada permanece indeterminada. Nao criar, reemitir, cancelar ou enviar cobrancas. Documentacao oficial do GET confirma url e status, sem promessa de PDF: https://developers.contaazul.com/docs/charge-apis-openapi/v1. A sonda temporaria anterior fez nove GETs financeiros e um GET publico. A investigacao do link na retomada fez 13 GETs financeiros (um 401 e doze 200), um GET publico e abertura no navegador. O teste posterior do novo script fez mais cinco GETs, incluindo o download direto do PDF; total da retomada: 18 GETs financeiros e um publico, alem do uso do navegador. Nenhuma causa raiz concluida; nao presumir token invalido ou indisponibilidade geral.

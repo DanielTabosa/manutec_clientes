@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, ProxyHandler, build_opener
 from uuid import UUID
 from dotenv import dotenv_values
-from contaazul_auth import CONFIG, SemRedirecionamento
+from contaazul_auth import CONFIG, CONFIG_PRODUCAO, SemRedirecionamento
 
 BASE = 'https://api-v2.contaazul.com'
 LIMITE = 1048576
@@ -75,7 +75,7 @@ def executar(inicio, fim, *, path=CONFIG):
         return 0
     except HTTPError as error:
         if error.code == 401:
-            print('FALHA HTTP 401: acesso recusado. Renove com contaazul_auth.py e tente manualmente.')
+            print('FALHA HTTP 401: acesso recusado. Renove com contaazul_auth.py no mesmo ambiente (--producao quando selecionado) e tente manualmente.')
         else:
             print(f'FALHA HTTP {error.code}: consulta interrompida; sem repeticao automatica.')
         return 1
@@ -84,10 +84,17 @@ def executar(inicio, fim, *, path=CONFIG):
         return 1
 
 
-if __name__ == '__main__':
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--inicio', type=date.fromisoformat, help='YYYY-MM-DD; padrao: hoje menos 14 dias')
     parser.add_argument('--fim', type=date.fromisoformat, help='YYYY-MM-DD; padrao: hoje')
-    args = parser.parse_args()
+    parser.add_argument('--producao', action='store_true', help='Usar somente a configuracao separada de producao.')
+    args = parser.parse_args(argv)
+    path = CONFIG_PRODUCAO if args.producao else CONFIG
+    print('Configuracao selecionada: ' + ('PRODUCAO' if args.producao else 'DESENVOLVIMENTO'))
     fim = args.fim or date.today()
-    raise SystemExit(executar(args.inicio or fim - timedelta(days=14), fim))
+    return executar(args.inicio or fim - timedelta(days=14), fim, path=path)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
