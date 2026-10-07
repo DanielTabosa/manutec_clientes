@@ -1,18 +1,24 @@
-# Retomada — prévia de associação de NFS-e/clientes concluída
+# Retomada — associação adiada; desenho de anexos/conferência proposto
 
-## Próximo passo
+## Decisão atual e próximo passo
 
-Usuário autorizou preparar prévia de associação dos documentos ao cadastro, sem gravar vínculos ou enviar. Implementada para NFS-e com `backend/contaazul_previa_clientes.py`. Resultado real: **uma sugestão de cliente, 135 notas sem cadastro (110 CNPJs distintos), três documentos não conferidos**. Cadastro PostgreSQL local tem três clientes, três CNPJs atuais e um CNPJ encerrado. Não tratar 135 notas como 135 clientes nem presumir base de clientes completa.
+Usuário esclareceu que os clientes da base instalada são reais, mas foram cadastrados apenas para testes e podem conter dados imprecisos. **Alinhamento de documentos/clientes só será necessário quando a base definitiva estiver preenchida.** Não preparar lista de clientes faltantes, importação ou correções com base nos resultados anteriores. Preservar scripts e relatório como evidência técnica, sem repetir consultas de associação ou alterar cadastros.
 
-Próximo passo a propor: preparar lista dos 110 CNPJs sem cadastro, com identificação para revisão, sem criar clientes automaticamente. Aguardar autorização. Não iniciar importação, associação persistida, anexação ou envio; não ampliar para boleto sem definir escopo. Regra de comparar somente CNPJ atual único é apenas critério conservador desta prévia.
+Usuário autorizou registrar essa decisão e desenhar o fluxo de anexar boleto/nota e conferir destinatários antes do envio, com exemplos fictícios. Desenho concluído em docs/PREPARACAO_ENVIO_DOCUMENTOS.md, seção Base de teste e desenho do fluxo. Ainda não é implementação ou aprovação de novas regras.
 
-Relatório real salvo: `.venv/contaazul/producao/previas/clientes-nfse-202610.csv`, protegido e ignorado pelo Git. 139 linhas; apenas a sugestão tem ID/nome do cliente preenchidos. Inclui índice do par e número da nota, situação/motivo, sem CNPJ/valor. Não expor conteúdo no chat ou commit. Não sobrescrever/remover; nova execução bloqueia antes da API/banco se existir. ZIP original preservado por hash. Nenhum vínculo/cadastro gravado.
+Proposta: escolher cliente → anexar/classificar boleto e/ou nota → mostrar por contato os anexos permitidos pelas categorias já configuradas → revisar assunto/texto e confirmar. Boleto/nota independentes. Na demonstração, cliente, contatos e PDFs são inteiramente fictícios; botão Simular preparação e resultado explicitamente simulado. Contato sem e-mail aparece impedido para e-mail, sem apagar cadastro. Reutilizar a configuração de destinatários aprovada; não alterar seleções silenciosamente. Envio real, SMTP, persistência e prevenção de duplicidade ficam para etapa futura.
 
-Comando: `.\.venv\Scripts\python.exe backend/contaazul_previa_clientes.py --producao --competencia 2026-10 --zip "C:\Users\didit\Downloads\NFSe-10-2026 (2).zip"`. Revalida as notas com API, seleciona somente reconhecidas, consulta CNPJs necessários em transação PostgreSQL READ ONLY com timeout e parâmetros. CPF, CNPJ antigo, duplicidade e ausência ficam pendentes. Não usa nome como critério ou administradora como cliente. ID interno do cliente permanece referência estável.
+**Próximo passo a perguntar ao usuário:** aprova esse desenho e posso criar um protótipo visual navegável, sem banco/API/envio? Aguardar resposta antes de implementar. Não usar cadastros reais da base instalada como exemplos confiáveis. Não implementar extração/importação ou envio automaticamente.
 
-54 testes Conta Azul passaram (45 anteriores + nove da prévia). Primeira execução dos novos testes revelou erro no objeto simulado de contexto do cursor; corrigido com MagicMock e todos passaram. Validação real PostgreSQL foi somente leitura, não teste de escrita/rollback nem SQLite. Relatório reaberto para validar contagens e preenchimento condicional. Proteção CSV contra fórmulas e salvamento sem sobrescrita testados. Handoff/documentos sincronizados; concluir com commit/push conforme instruções atuais e verificar git status/log.
+Etapa atual somente documental: atualizados PROJECT_STATE.md, backend/README.md, docs/PREPARACAO_ENVIO_DOCUMENTOS.md e este handoff. Conferir conteúdo/links/diff e fazer commit/push conforme instruções atuais. Nenhuma migration, gravação em banco ou teste SQLite/PostgreSQL pertinente. Implementações anteriores nos commits 4acb467 e 91cfa9b preservadas.
 
-Preferência permanente: concluir tarefa, apresentar resultado, sugerir próximo passo concreto e perguntar se pode continuar; aguardar autorização de nova etapa, sem reconfirmar passos internos já autorizados.
+Preferência permanente: ao concluir cada tarefa, apresentar resultado, sugerir próximo passo concreto e perguntar se pode continuar. Aguardar autorização da nova etapa, sem reconfirmar passos internos já autorizados.
+
+## Prévia anterior — evidência de teste, não diagnóstico da base definitiva
+
+`backend/contaazul_previa_clientes.py` gerou CSV protegido `.venv/contaazul/producao/previas/clientes-nfse-202610.csv`: uma sugestão, 135 notas sem cadastro (110 CNPJs distintos), três documentos não conferidos. PostgreSQL local: três clientes, três CNPJs atuais e um encerrado. Resultado esperado de uma base de teste incompleta/imprecisa; não usar como justificativa para cadastrar 110 clientes.
+
+Nenhum vínculo gravado. ZIP preservado por hash. Apenas consulta PostgreSQL READ ONLY com timeout e parâmetros. Relatório não sobrescrito/fora do Git; contém índice/número da nota e nome/ID apenas quando sugerido. Não expor conteúdo no chat/commit. 54 testes simulados passaram na etapa anterior; prévia real foi exclusivamente de leitura, não teste de escrita/rollback/SQLite.
 
 ## Resultado confirmado em 07/10/2026
 
@@ -60,4 +66,4 @@ Painel de destinatários concluído e aceito, incluindo lista própria do usuár
 
 Backup protegido `.venv/backups/pre_0007_20260928/pre_0007.dump`, hash em verification.json; preservar antes de recriar .venv. Recuperação somente em banco vazio separado, conforme README; não reverter migration automaticamente.
 
-Obtenção direta de arquivo NFS-e via API ainda não comprovada: fluxo atual usa ZIP fornecido. Prévia local de associação de NFS-e por CNPJ atual já implementada; associação persistida, boletos, integração ao painel, anexos, prevenção de duplicidade, destinatários e envio continuam por definir/implementar. SMTP de domínio próprio via cPanel é direção, dados pendentes. IA e pasta monitorada adiadas.
+Obtenção direta de arquivo NFS-e via API ainda não comprovada: fluxo atual usa ZIP fornecido. Prévia local de associação de NFS-e por CNPJ atual preservada, mas seu uso/alinhamento está adiado até a base definitiva. Desenho de anexos/conferência proposto; associação persistida, boletos, integração ao painel e envio continuam por definir/implementar. SMTP de domínio próprio via cPanel é direção, dados pendentes. IA e pasta monitorada adiadas.

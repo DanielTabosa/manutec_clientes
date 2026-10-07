@@ -2,6 +2,29 @@
 
 Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado diretamente pela API pública. Integração ao painel, anexos e envio ainda não implementados. Evidências anteriores estão preservadas abaixo como contexto datado.
 
+## Base de teste e desenho do fluxo — decisão de 07/10/2026
+
+**Decisão do usuário:** os clientes atualmente cadastrados são reais, mas foram inseridos apenas para testes e podem conter dados imprecisos. A associação com documentos só será validada quando a base definitiva estiver preenchida. Não usar a prévia anterior para concluir que faltam 110 clientes, preparar importação, corrigir cadastros ou sugerir envios reais. Scripts e relatório anteriores ficam preservados como evidência técnica; sem novas execuções de alinhamento nesta fase.
+
+O usuário autorizou registrar essa decisão e desenhar o fluxo abaixo com exemplos fictícios. **Desenho proposto para aprovação, ainda não implementado:**
+
+1. **Escolher o cliente:** iniciar a preparação no contexto de um cliente, mostrando claramente quem é o destinatário dos documentos. Na demonstração, usar um cliente inteiramente fictício, sem consultar/alterar a base de teste instalada.
+2. **Anexar e classificar:** adicionar PDF de boleto e/ou nota fiscal; mostrar nome, categoria, opção de visualizar/remover e referência do documento. Boleto e nota são independentes, sem obrigatoriedade de enviar ambos. A primeira demonstração usa arquivos fictícios locais; download Conta Azul e importação de ZIP já existentes continuam rotinas separadas.
+3. **Conferir por destinatário:** apresentar nome, e-mail e exatamente os anexos que cada contato receberia, conforme categorias/configuração vigente. Reutilizar as regras de destinatários já aprovadas, incluindo exclusão de contatos encerrados. Ausência de e-mail deve aparecer como impedimento para aquele envio por e-mail, sem apagar ou desmarcar o contato no cadastro. Correções da configuração pertencem à tela de destinatários; não introduzir alterações silenciosas durante a preparação.
+4. **Revisar e confirmar:** mostrar cliente, assunto/texto e anexos por destinatário antes da ação final. Na demonstração, ação **Simular preparação**, com resultado claramente simulado e nenhuma mensagem enviada. Envio real, persistência de rascunhos/histórico e configuração SMTP ficam para etapa posterior aprovada.
+
+Exemplo fictício de conferência:
+
+| Contato | Categorias configuradas | Anexos apresentados |
+| --- | --- | --- |
+| Ana | Boleto e nota fiscal | Boleto de exemplo + nota de exemplo |
+| Bruno | Boleto | Somente boleto de exemplo |
+| Carla | Nota fiscal | Somente nota de exemplo |
+
+A interface deve distinguir arquivo anexado de documento corretamente identificado: o usuário confere o conteúdo antes da confirmação. A associação automática por CNPJ fica adiada conforme decisão acima. Antes do envio real, definir remetente/SMTP, permissão de envio, tratamento de contatos com o mesmo e-mail, prevenção de duplicidade/reenvio e registro de aceitação/falha; não assumir que aceitação pelo provedor prova entrega.
+
+Próximo passo proposto: protótipo visual navegável desse fluxo, com cliente/contatos/PDFs fictícios, sem banco, API Conta Azul ou envio. Aguardar aprovação do desenho antes de implementar. Esta etapa foi somente documental; conteúdo, links relativos e diff conferidos, sem migrations, gravações em banco ou testes SQLite/PostgreSQL.
+
 ## Download direto de boleto validado — 06/10/2026
 
 `backend/contaazul_boleto.py` adapta a rotina de `C:/dev/manutec-faturamento/src/faturamento/boletos.py`, consultada apenas para leitura. Usa o [GET oficial de PDF da cobrança](https://developers.contaazul.com/docs/charge-apis-openapi/v1/imprimircobrancapdf), terminado em `/cobranca/{id_cobranca}/imprimir`. A investigação anterior do link da cobrança não havia identificado essa operação; a disponibilidade do PDF de boleto agora está comprovada nesta amostra.
@@ -34,7 +57,7 @@ Consulta somente os CNPJs necessários no PostgreSQL configurado pelo Django, em
 
 Resultado real: 139 linhas, sendo uma sugestão, 135 notas sem cadastro (110 CNPJs distintos) e três documentos não conferidos por status CANCELAMENTO_MANUAL. Cadastro local possui três clientes, três CNPJs atuais e um histórico encerrado. Somente a linha sugerida tem cliente preenchido. ZIP preservado por hash; nenhum vínculo gravado. É prévia de NFS-e, não associação de boletos nem vínculo definitivo entre todos os documentos.
 
-Validação: 54 testes Conta Azul com dados fictícios (nove novos de prévia), ajuda, leitura do CSV e diff. PostgreSQL instalado usado exclusivamente em consultas/transações de leitura; não houve teste de escrita/rollback ou suite SQLite nesta etapa. Próximo passo proposto: preparar uma lista dos 110 CNPJs sem cadastro com dados de identificação para revisão, antes de decidir eventual importação. Ainda aguarda autorização.
+Validação: 54 testes Conta Azul com dados fictícios (nove novos de prévia), ajuda, leitura do CSV e diff. PostgreSQL instalado usado exclusivamente em consultas/transações de leitura; não houve teste de escrita/rollback ou suite SQLite nesta etapa. Essa proposta foi adiada pelo usuário: a base atual é somente de teste e pode ser imprecisa. O resultado não serve para diagnosticar falta de clientes na base definitiva ou preparar importação; ver decisão atual acima.
 
 ## Conferência local de NFS-e — 07/10/2026
 
@@ -99,7 +122,7 @@ Antes de criar aplicação ou iniciar OAuth, confirmar se o usuário já tem cad
 
 ## Próxima etapa proposta
 
-PDF de boleto existente obtido diretamente pela API pública. Definir com o usuário a próxima etapa: identificação e associação dos documentos aos clientes para integração ao painel, ou obtenção das NFS-e. Para NFS-e, avaliar suporte oficial ou anexação local se não houver download público documentado. Não implementar envio, lote ou novas regras de associação antes de definir o escopo.
+Alinhamento com clientes adiado até a base definitiva, conforme decisão atual. Próxima etapa proposta: protótipo navegável do fluxo de anexos e conferência com dados fictícios, sujeito à aprovação do usuário. Boleto via API e conferência do ZIP de NFS-e já validados tecnicamente; envio real, lote e associações persistidas continuam fora do escopo.
 
 A retomada autorizou continuar a investigação. Sonda manual de renovação preparada em backend/contaazul_auth.py, com configuração local protegida e oito testes simulados. O cURL do portal continha apenas o marcador REFRESH_TOKEN_GERADO; não comprovou fornecimento de Refresh Token real. Acrescentado --autorizar para primeira troca guiada de código; usuário informou execução concluída com tokens salvos localmente. Integração ao painel e envio ainda não foram executados. Usuário quer progresso por etapas: ao concluir uma, explicar a próxima e pedir autorização para avançar. Commit e push rotineiros têm autorização permanente em AGENTS.md.
 
