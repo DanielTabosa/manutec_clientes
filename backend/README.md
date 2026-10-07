@@ -368,3 +368,19 @@ Limites: ZIP compactado e soma descompactada até 100 MiB; até 2.000 entradas; 
 A [listagem oficial de NFS-e](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/obternotasfiscaisservicoporfiltro) é consultada em janelas consecutivas de até 15 datas inclusivas. Até 10 páginas de 50 registros por janela (máximo 30 GETs/mês); página cheia ao atingir limite interrompe, sem aceitar resultado truncado. JSON limitado a 2 MiB por resposta; sem redirects, renovação ou repetição automática. HTTP 401 exige renovação manual do mesmo ambiente.
 
 Validação: 45 testes da integração passaram (16 novos de NFS-e), com ZIPs fictícios e rede simulada. ZIP real informado pelo usuário: 139 pares aptos localmente, nenhuma pendência local, hash preservado antes/depois. Competência outubro/2026 inferida do nome do ZIP e comunicada ao usuário. Comparação real concluída após renovação manual confirmada pelo usuário: 136 notas reconhecidas e três pendentes por status diferente de EMITIDA. Consulta adicional somente de leitura confirmou que as três estão com status CANCELAMENTO_MANUAL. Permanecem fora das reconhecidas; nenhuma alteração de regra ou estado fiscal. ZIP preservado por hash antes/depois. A execução anterior retornou 401 e foi interrompida sem repetição automática; a repetição posterior foi manual após renovação. Sem testes SQLite/PostgreSQL ou migrations, pois o script não usa banco.
+
+## Prévia de associação de NFS-e aos clientes — 07/10/2026
+
+`backend/contaazul_previa_clientes.py` reaproveita a conferência do ZIP/API e propõe clientes apenas para notas reconhecidas. O CNPJ do tomador deve corresponder a exatamente um registro atual (`data_fim` nula) no histórico de CNPJs do cadastro. O ID permanente do cliente é a sugestão; nenhuma associação é persistida. Nome semelhante não é critério. CPF sem regra local, CNPJ antigo, ausência e duplicidade ficam pendentes. Este critério é conservador para a prévia, não uma nova regra de importação/envio.
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_previa_clientes.py --producao --competencia 2026-10 --zip "C:\Users\didit\Downloads\NFSe-10-2026 (2).zip"
+```
+
+Consulta somente os CNPJs necessários no PostgreSQL configurado pelo Django, em transação `READ ONLY`, com parâmetros e timeout de 10 segundos. Recusa outro banco/transação já ativa; não usa SQLite como substituto. Configuração local é carregada internamente, sem exibir credenciais. Nenhuma migration, atualização cadastral ou envio.
+
+Única gravação: CSV protegido em `.venv/contaazul/producao/previas/clientes-nfse-202610.csv` (no ambiente de desenvolvimento, sob `.venv/contaazul/previas`). Fora do Git; não sobrescreve, inclusive em concorrência. Contém índice do par, número da nota, cliente sugerido (ID/nome), situação/motivo, sem CNPJ ou valor. Células são protegidas contra interpretação como fórmula. Console só mostra contagens e caminho. O relatório existente bloqueia nova execução antes da API/banco; preservar antes de gerar outra prévia.
+
+Resultado real: 139 linhas, sendo uma sugestão, 135 notas sem cadastro (110 CNPJs distintos) e três documentos não conferidos por status CANCELAMENTO_MANUAL. Cadastro local possui três clientes, três CNPJs atuais e um histórico encerrado. Somente a linha sugerida tem cliente preenchido. ZIP preservado por hash; nenhum vínculo gravado. É prévia de NFS-e, não associação de boletos nem vínculo definitivo entre todos os documentos.
+
+Validação: 54 testes Conta Azul com dados fictícios (nove novos de prévia), ajuda, leitura do CSV e diff. PostgreSQL instalado usado exclusivamente em consultas/transações de leitura; não houve teste de escrita/rollback ou suite SQLite nesta etapa. Próximo passo proposto: preparar uma lista dos 110 CNPJs sem cadastro com dados de identificação para revisão, antes de decidir eventual importação. Ainda aguarda autorização.

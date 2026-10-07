@@ -20,6 +20,22 @@ Validação: 29 testes da integração com rede simulada (12 novos de download),
 
 Integração ao painel, associação por cliente, anexação/envio e PDF/XML de NFS-e continuam pendentes. Conclusão segue a autorização de commit/push das instruções atuais do projeto, reapresentadas em 07/10/2026.
 
+## Prévia de associação de NFS-e aos clientes — 07/10/2026
+
+`backend/contaazul_previa_clientes.py` reaproveita a conferência do ZIP/API e propõe clientes apenas para notas reconhecidas. O CNPJ do tomador deve corresponder a exatamente um registro atual (`data_fim` nula) no histórico de CNPJs do cadastro. O ID permanente do cliente é a sugestão; nenhuma associação é persistida. Nome semelhante não é critério. CPF sem regra local, CNPJ antigo, ausência e duplicidade ficam pendentes. Este critério é conservador para a prévia, não uma nova regra de importação/envio.
+
+```powershell
+.\.venv\Scripts\python.exe backend/contaazul_previa_clientes.py --producao --competencia 2026-10 --zip "C:\Users\didit\Downloads\NFSe-10-2026 (2).zip"
+```
+
+Consulta somente os CNPJs necessários no PostgreSQL configurado pelo Django, em transação `READ ONLY`, com parâmetros e timeout de 10 segundos. Recusa outro banco/transação já ativa; não usa SQLite como substituto. Configuração local é carregada internamente, sem exibir credenciais. Nenhuma migration, atualização cadastral ou envio.
+
+Única gravação: CSV protegido em `.venv/contaazul/producao/previas/clientes-nfse-202610.csv` (no ambiente de desenvolvimento, sob `.venv/contaazul/previas`). Fora do Git; não sobrescreve, inclusive em concorrência. Contém índice do par, número da nota, cliente sugerido (ID/nome), situação/motivo, sem CNPJ ou valor. Células são protegidas contra interpretação como fórmula. Console só mostra contagens e caminho. O relatório existente bloqueia nova execução antes da API/banco; preservar antes de gerar outra prévia.
+
+Resultado real: 139 linhas, sendo uma sugestão, 135 notas sem cadastro (110 CNPJs distintos) e três documentos não conferidos por status CANCELAMENTO_MANUAL. Cadastro local possui três clientes, três CNPJs atuais e um histórico encerrado. Somente a linha sugerida tem cliente preenchido. ZIP preservado por hash; nenhum vínculo gravado. É prévia de NFS-e, não associação de boletos nem vínculo definitivo entre todos os documentos.
+
+Validação: 54 testes Conta Azul com dados fictícios (nove novos de prévia), ajuda, leitura do CSV e diff. PostgreSQL instalado usado exclusivamente em consultas/transações de leitura; não houve teste de escrita/rollback ou suite SQLite nesta etapa. Próximo passo proposto: preparar uma lista dos 110 CNPJs sem cadastro com dados de identificação para revisão, antes de decidir eventual importação. Ainda aguarda autorização.
+
 ## Conferência local de NFS-e — 07/10/2026
 
 Implementado `backend/contaazul_nfse.py`: lê ZIP existente, sem extrair, renomear, copiar ou modificar arquivos. Pareia PDF/XML pelo nome-base, recusa duplicidades e exige número da NFS-e, DPS/RPS, documento do tomador e valor. Compara com a listagem pública do Conta Azul: status EMITIDA e correspondência única com todos os campos iguais. Não associa ao cadastro do projeto, não consulta contratos e não grava no banco. Dados financeiros usam Decimal.
