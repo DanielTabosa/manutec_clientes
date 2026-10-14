@@ -1,0 +1,8 @@
+{% extends "admin/base.html" %}
+{% load static %}
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} · Manutec retaguarda{% endblock %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'painel/admin-tema.css' %}">{% endblock %}
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}" class="marca-admin" aria-label="Manutec Válvulas — retaguarda"><span>MANUTEC</span><small>retaguarda</small></a></div>
+{% endblock %}
+{% block userlinks %}<a href="{% url 'painel:inicio' %}">Voltar para o sistema</a> / {{ block.super }}{% endblock %}

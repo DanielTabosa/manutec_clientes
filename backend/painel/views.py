@@ -131,3 +131,31 @@ def preparacao(request, pk):
 @exige('clientes.view_preparacaoenvio')
 def documento(request, pk, doc_pk):
     return fluxo.resposta_documento(pk, doc_pk)
+
+
+@login_required
+def busca(request):
+    from clientes.models import Administradora
+    termo = request.GET.get('q', '').strip()
+    resultados = dict(clientes=[], administradoras=[], preparacoes=[])
+    if len(termo) >= 2:
+        digitos = ''.join(c for c in termo if c.isalnum()).upper()
+        tem_numero = len(digitos) >= 4 and any(c.isdigit() for c in digitos)
+        if request.user.has_perm('clientes.view_cliente'):
+            filtro = Q(razao_social__icontains=termo) | Q(nome_fantasia__icontains=termo) | Q(cidade__icontains=termo)
+            if tem_numero:
+                filtro |= Q(historico_cnpj__cnpj__icontains=digitos)
+            resultados['clientes'] = list(_clientes_anotados().filter(filtro).distinct().order_by('razao_social')[:8])
+        if request.user.has_perm('clientes.view_administradora'):
+            filtro = Q(razao_social__icontains=termo) | Q(nome_fantasia__icontains=termo)
+            if tem_numero:
+                filtro |= Q(cnpj__icontains=digitos)
+            resultados['administradoras'] = list(Administradora.objects.filter(filtro).order_by('razao_social')[:8])
+        if request.user.has_perm('clientes.view_preparacaoenvio'):
+            filtro = Q(cliente__razao_social__icontains=termo) | Q(cliente__nome_fantasia__icontains=termo)
+            if termo.lstrip('#').isdigit():
+                filtro |= Q(pk=int(termo.lstrip('#')))
+            resultados['preparacoes'] = [(p, fluxo.situacao_envio(p)) for p in
+                                         PreparacaoEnvio.objects.select_related('cliente').filter(filtro)[:8]]
+    total = sum(len(v) for v in resultados.values())
+    return render(request, 'painel/busca.html', dict(secao='', termo_global=termo, termo=termo, total=total, **resultados))

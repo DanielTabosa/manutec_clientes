@@ -14,6 +14,11 @@
 {% if erros %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><div>{% if erros|length == 1 %}{{ erros.0 }}{% else %}<ul>{% for e in erros %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div></div>{% endif %}
 
 {% if prep.status == 'rascunho' %}
+<nav class="passos-wrap" aria-label="Etapas da preparação"><ol class="passos">
+  <li><a href="#documentos" data-passo class="{% if plano.documentos %}feito{% endif %}"><span class="n">1</span>Documentos{% if plano.documentos %} · {{ plano.documentos|length }}{% endif %}</a></li>
+  <li><a href="#destinatarios" data-passo class="{% if plano.envios %}feito{% endif %}"><span class="n">2</span>Destinatários{% if plano.envios %} · {{ plano.envios|length }}{% endif %}</a></li>
+  <li><a href="#revisao" data-passo><span class="n">3</span>Revisão e confirmação</a></li>
+</ol></nav>
 <div class="stack">
   <section class="card" id="documentos" aria-labelledby="s1">
     <div class="card-head"><div class="step-title"><span class="step-num">1</span><div><h2 id="s1">Documentos</h2><p class="muted small">Classifique cada PDF. Boleto e nota são independentes: o cliente pode receber só um deles.</p></div></div></div>
@@ -25,7 +30,7 @@
         <td data-label="Categoria"><span class="chip chip-info">{{ d.get_categoria_display }}</span></td>
         <td data-label="Referência">{{ d.referencia|default:"—" }}</td>
         <td data-label="Tamanho" class="num">{{ d.tamanho|filesizeformat }}</td>
-        <td class="acoes"><a class="btn btn-sm" href="{% url 'painel:documento' prep.pk d.pk %}" target="_blank" rel="noopener" aria-label="Visualizar {{ d.nome_original }}"><svg class="i"><use href="#i-eye"/></svg>Visualizar</a>
+        <td class="acoes"><a class="btn btn-sm" href="{% url 'painel:documento' prep.pk d.pk %}" target="_blank" rel="noopener" data-pdf="{{ d.nome_original }}" aria-label="Visualizar {{ d.nome_original }}"><svg class="i"><use href="#i-eye"/></svg>Visualizar</a>
           {% if pode_editar %}<form class="inline-form" method="post">{% csrf_token %}<input type="hidden" name="acao" value="remover"><input type="hidden" name="documento" value="{{ d.pk }}"><button type="submit" class="btn btn-sm btn-danger" aria-label="Remover {{ d.nome_original }}"><svg class="i"><use href="#i-trash"/></svg>Remover</button></form>{% endif %}</td>
       </tr>{% endfor %}</tbody>
     </table></div>
@@ -81,9 +86,10 @@
       {% endif %}
     </div>
     {% endif %}
+    {% if plano.documentos %}<div class="card-body" style="border-top:1px solid var(--border);padding-top:14px;padding-bottom:14px"><div class="foot-actions"><a class="btn btn-primary" href="#destinatarios">Continuar para destinatários<svg class="i"><use href="#i-arrow"/></svg></a></div></div>{% endif %}
   </section>
 
-  <section class="card" aria-labelledby="s2">
+  <section class="card" id="destinatarios" aria-labelledby="s2">
     <div class="card-head"><div class="step-title"><span class="step-num">2</span><div><h2 id="s2">Destinatários</h2><p class="muted small">Cada e-mail recebe só os documentos das categorias configuradas. Nada é alterado aqui.</p></div></div>
       <a class="btn btn-sm" href="{% url 'painel:cliente_destinatarios' prep.cliente_id %}">Configurar destinatários</a></div>
     <div class="card-body stack">
@@ -108,6 +114,8 @@
     </div>
     {% endif %}
   </section>
+
+  {% if plano.envios %}<div class="foot-actions"><a class="btn btn-primary" href="#revisao">Continuar para revisão<svg class="i"><use href="#i-arrow"/></svg></a></div>{% endif %}
 
   <section class="card" id="revisao" aria-labelledby="s3">
     <div class="card-head"><div class="step-title"><span class="step-num">3</span><div><h2 id="s3">Revisão e confirmação</h2><p class="muted small">Confirmar registra destinatários e anexos deste momento. Nada é enviado nesta etapa.</p></div></div></div>
@@ -150,7 +158,7 @@
       <tbody>{% for dest in confirmados %}<tr data-envio>
         <td data-label="Destinatário"><strong>{{ dest.nomes }}</strong></td>
         <td data-label="E-mail" class="wrap-any">{{ dest.email }}</td>
-        <td data-label="Anexos"><ul class="doc-list">{% for i in dest.itens.all %}<li><a href="{% url 'painel:documento' prep.pk i.documento.pk %}" target="_blank" rel="noopener">{{ i.documento.nome_original }}</a> <span class="chip chip-info">{{ i.documento.get_categoria_display }}</span>{% if i.reenvio %} <span class="chip chip-warn">Reenvio</span>{% endif %}</li>{% endfor %}</ul></td>
+        <td data-label="Anexos"><ul class="doc-list">{% for i in dest.itens.all %}<li><a href="{% url 'painel:documento' prep.pk i.documento.pk %}" target="_blank" rel="noopener" data-pdf="{{ i.documento.nome_original }}">{{ i.documento.nome_original }}</a> <span class="chip chip-info">{{ i.documento.get_categoria_display }}</span>{% if i.reenvio %} <span class="chip chip-warn">Reenvio</span>{% endif %}</li>{% endfor %}</ul></td>
         <td data-label="Situação" data-status-envio="{{ dest.status_envio }}">{% include "painel/_status.html" with status=dest.status_envio rotulo=dest.get_status_envio_display %}
           {% if dest.aceito_em %}<div class="row-sub">{{ dest.aceito_em|date:"d/m/Y H:i" }}</div>{% endif %}
           {% if dest.status_envio == 'falha' %}<div class="row-sub" style="color:var(--error-text)">{{ dest.ultimo_erro }}</div>{% endif %}
@@ -168,7 +176,7 @@
     {% if prep.motivo_reenvio %}<p style="margin-top:12px"><strong>Motivo do reenvio:</strong> {{ prep.motivo_reenvio }}</p>{% endif %}
     <hr class="divider">
     <h3 style="margin-bottom:8px">Documentos anexados</h3>
-    <ul class="doc-list">{% for d in documentos %}<li><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><a href="{% url 'painel:documento' prep.pk d.pk %}" target="_blank" rel="noopener">{{ d.nome_original }}</a> <span class="chip chip-info">{{ d.get_categoria_display }}</span>{% if d.removido_em %} <span class="muted small">removido em {{ d.removido_em|date:"d/m/Y H:i" }}</span>{% endif %}</li>{% empty %}<li class="muted">Nenhum documento.</li>{% endfor %}</ul>
+    <ul class="doc-list">{% for d in documentos %}<li><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><a href="{% url 'painel:documento' prep.pk d.pk %}" target="_blank" rel="noopener" data-pdf="{{ d.nome_original }}">{{ d.nome_original }}</a> <span class="chip chip-info">{{ d.get_categoria_display }}</span>{% if d.removido_em %} <span class="muted small">removido em {{ d.removido_em|date:"d/m/Y H:i" }}</span>{% endif %}</li>{% empty %}<li class="muted">Nenhum documento.</li>{% endfor %}</ul>
   </section>
 </div>
 {% endif %}

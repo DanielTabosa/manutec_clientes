@@ -175,3 +175,22 @@ class CadastrosTests(BasePreparacao):
         with patch('painel.cadastros.consultar_cnpj', return_value={'razao_social': 'X'}):
             self.assertEqual(self.client.get(reverse('painel:consulta_cnpj'), {'cnpj': '22333444000155'}).json(), {'razao_social': 'X'})
         self.assertEqual(self.client.get(reverse('painel:consulta_cep'), {'cep': '123'}).status_code, 400)
+
+
+class BuscaTests(BasePreparacao):
+    def test_busca_global_respeita_permissoes(self):
+        self.client.force_login(self.user)
+        url = reverse('painel:busca')
+        self.assertContains(self.client.get(url, {'q': 'a'}), 'ao menos 2 letras')
+        pagina = self.client.get(url, {'q': 'QA'}).content.decode()
+        self.assertIn('Condomínio QA', pagina)
+        self.assertIn('Empresa QA', pagina)
+        prep = self.nova()
+        self.assertContains(self.client.get(url, {'q': f'#{prep.pk}'}), f'Preparação {prep.pk}')
+        self.assertContains(self.client.get(url, {'q': 'zzzz'}), 'Nada encontrado')
+        restrito = User.objects.create_user('restrito', password='somente-teste')
+        restrito.user_permissions.add(Permission.objects.get(codename='view_cliente'))
+        self.client.force_login(restrito)
+        pagina = self.client.get(url, {'q': 'QA'}).content.decode()
+        self.assertIn('Condomínio QA', pagina)
+        self.assertNotIn('Empresa QA', pagina)

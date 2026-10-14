@@ -1,0 +1,17 @@
+{% extends "painel/base.html" %}
+{% load painel %}
+{% block titulo %}Busca{% endblock %}
+{% block conteudo %}
+<div class="page-head"><div><h1>Resultados da busca</h1><p class="lead">{% if termo|length < 2 %}Digite ao menos 2 letras para buscar.{% else %}{{ total }} resultado(s) para “{{ termo }}”.{% endif %}</p></div></div>
+{% if termo|length >= 2 %}
+<div class="stack">
+  {% if clientes %}<section class="card" aria-labelledby="b-cli"><div class="card-head"><h2 id="b-cli">Clientes <span class="count">{{ clientes|length }}</span></h2></div>
+    <ul class="worklist">{% for c in clientes %}<li><a href="{% url 'painel:cliente' c.pk %}"><span class="worklist-main"><strong>{{ c.razao_social }}</strong><span class="row-sub num-data">{{ c.cnpj_atual|cnpj|default:"Sem CNPJ" }}{% if c.cidade %} · {{ c.cidade }}/{{ c.estado }}{% endif %}</span></span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul></section>{% endif %}
+  {% if administradoras %}<section class="card" aria-labelledby="b-adm"><div class="card-head"><h2 id="b-adm">Administradoras <span class="count">{{ administradoras|length }}</span></h2></div>
+    <ul class="worklist">{% for a in administradoras %}<li><a href="{% url 'painel:administradora' a.pk %}"><span class="worklist-main"><strong>{{ a.razao_social }}</strong><span class="row-sub">{{ a.email|default:"" }}</span></span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul></section>{% endif %}
+  {% if preparacoes %}<section class="card" aria-labelledby="b-prep"><div class="card-head"><h2 id="b-prep">Preparações <span class="count">{{ preparacoes|length }}</span></h2></div>
+    <ul class="worklist">{% for p, envio in preparacoes %}<li><a href="{% url 'painel:preparacao' p.pk %}"><span class="worklist-main"><strong>{{ p.cliente }}</strong><span class="row-sub">Preparação {{ p.pk }} · {{ p.get_status_display }}{% if envio %} · {{ envio }}{% endif %}</span></span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul></section>{% endif %}
+  {% if not total %}<div class="card"><div class="empty"><strong>Nada encontrado</strong>Tente parte do nome, o CNPJ ou o número da preparação.</div></div>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

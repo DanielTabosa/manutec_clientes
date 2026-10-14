@@ -27,16 +27,17 @@
   <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
   <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H7a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 11a4 4 0 0 1-1.5 8Z"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
   <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
 </svg>
 {% block corpo %}
 <div class="app">
   <header class="topbar">
     <button class="btn" type="button" data-abrir-menu aria-controls="menu" aria-expanded="false" aria-label="Abrir menu"><svg class="i"><use href="#i-menu"/></svg></button>
-    <strong>Manutec Clientes</strong>
+    <a href="{% url 'painel:inicio' %}" style="color:#fff">{% include "painel/_marca.html" with compacta=True %}</a>
   </header>
   <nav class="nav" id="menu" aria-label="Principal">
-    <a class="brand" href="{% url 'painel:inicio' %}"><span class="brand-mark" aria-hidden="true">M</span><span class="brand-text"><strong>Manutec</strong><span>Clientes e documentos</span></span></a>
+    <a class="brand" href="{% url 'painel:inicio' %}">{% include "painel/_marca.html" %}</a>
     <ul class="nav-list">
       <li><a class="nav-link" href="{% url 'painel:inicio' %}" {% if secao == 'inicio' %}aria-current="page"{% endif %}><svg class="i"><use href="#i-home"/></svg>Início</a></li>
       {% if perms.clientes.view_cliente %}<li><a class="nav-link" href="{% url 'painel:clientes' %}" {% if secao == 'clientes' %}aria-current="page"{% endif %}><svg class="i"><use href="#i-building"/></svg>Clientes</a></li>{% endif %}
@@ -53,12 +54,24 @@
     </div>
   </nav>
   <main class="main" id="conteudo">
+    <div class="barra">
+      <form class="busca-global" method="get" action="{% url 'painel:busca' %}" role="search">
+        <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+        <label class="sr" for="busca-global">Buscar em todo o sistema</label>
+        <input class="input" type="search" id="busca-global" name="q" value="{{ termo_global|default:'' }}" placeholder="Buscar cliente, administradora ou preparação" autocomplete="off">
+        <kbd class="atalho">Ctrl K</kbd>
+      </form>
+    </div>
     <div class="container">
-      {% if messages %}<div class="messages" role="status">{% for m in messages %}<div class="alert {% if m.level_tag == 'error' %}alert-error{% elif m.level_tag == 'warning' %}alert-warn{% else %}alert-ok{% endif %}"><svg class="i"><use href="#i-{% if m.level_tag == 'error' or m.level_tag == 'warning' %}alert{% else %}check{% endif %}"/></svg><span>{{ m }}</span></div>{% endfor %}</div>{% endif %}
+      {% if messages %}<div class="messages" role="status" aria-live="polite">{% for m in messages %}<div class="alert {% if m.level_tag == 'error' %}alert-error{% elif m.level_tag == 'warning' %}alert-warn{% else %}alert-ok{% endif %}" data-toast><svg class="i"><use href="#i-{% if m.level_tag == 'error' or m.level_tag == 'warning' %}alert{% else %}check{% endif %}"/></svg><span>{{ m }}</span><button type="button" class="toast-fechar" aria-label="Fechar aviso"><svg class="i"><use href="#i-x"/></svg></button></div>{% endfor %}</div>{% endif %}
       {% block conteudo %}{% endblock %}
     </div>
   </main>
 </div>
+<dialog class="gaveta" id="gaveta-pdf" aria-labelledby="gaveta-titulo">
+  <div class="gaveta-head"><strong id="gaveta-titulo">Documento</strong><span class="actions"><a class="btn btn-sm" id="gaveta-abrir" href="#" target="_blank" rel="noopener"><svg class="i"><use href="#i-external"/></svg>Abrir em nova aba</a><button type="button" class="btn btn-sm" data-fechar-gaveta aria-label="Fechar visualização"><svg class="i"><use href="#i-x"/></svg></button></span></div>
+  <iframe title="Visualização do documento"></iframe>
+</dialog>
 {% endblock %}
 </body>
 </html>

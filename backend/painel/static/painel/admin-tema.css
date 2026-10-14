@@ -1,0 +1,27 @@
+/* Retaguarda (Django admin) com a identidade Manutec. Só variáveis de tema e ajustes leves. */
+@font-face { font-family: "Inter"; font-style: normal; font-display: swap; font-weight: 100 900; src: url("fontes/inter-latin-wght-normal.woff2") format("woff2-variations"); }
+:root, html[data-theme="light"] {
+  --primary: #1f5fbf; --secondary: #0e2a5c; --accent: #5e9ce9; --primary-fg: #fff;
+  --body-fg: #12203a; --body-bg: #fff; --body-quiet-color: #54595f; --body-loud-color: #071a3d;
+  --header-color: #dbe6f5; --header-branding-color: #fff; --header-bg: #0e2a5c; --header-link-color: #fff;
+  --breadcrumbs-fg: #bfd3f2; --breadcrumbs-link-fg: #fff; --breadcrumbs-bg: #163a7a;
+  --link-fg: #1f5fbf; --link-hover-color: #1a4fa3; --link-selected-fg: #1a4fa3;
+  --hairline-color: #e6eaf0; --border-color: #dce3ec; --darkened-bg: #f1f3f5; --selected-bg: #e3eefc; --selected-row: #f2f7fe;
+  --button-fg: #fff; --button-bg: #1f5fbf; --button-hover-bg: #1a4fa3; --default-button-bg: #0e2a5c; --default-button-hover-bg: #071a3d;
+  --close-button-bg: #6b7a90; --close-button-hover-bg: #3a4a63;
+  --message-success-bg: #dcf5e5; --message-warning-bg: #fef3c7; --message-error-bg: #fde4e4;
+  --font-family-primary: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --primary: #5e9ce9; --secondary: #163a7a; --header-bg: #050f22; --breadcrumbs-bg: #0e1d38; --link-fg: #7db1f0; --button-bg: #1f5fbf; --default-button-bg: #163a7a; --body-bg: #0b1830; --darkened-bg: #0e1d38; --border-color: #1f3459; --hairline-color: #1f3459; --selected-row: #13294f; }
+}
+html[data-theme="dark"] { --primary: #5e9ce9; --secondary: #163a7a; --header-bg: #050f22; --breadcrumbs-bg: #0e1d38; --link-fg: #7db1f0; --button-bg: #1f5fbf; --default-button-bg: #163a7a; --body-bg: #0b1830; --darkened-bg: #0e1d38; --border-color: #1f3459; --hairline-color: #1f3459; --selected-row: #13294f; }
+body { -webkit-font-smoothing: antialiased; }
+#header { padding: 12px 32px; }
+.marca-admin { display: inline-flex; align-items: baseline; gap: 10px; text-decoration: none !important; }
+.marca-admin span { font-weight: 800; letter-spacing: .06em; font-size: 20px; color: #fff; }
+.marca-admin small { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #9cc0f0; }
+.module, .inline-group, fieldset.module { border-radius: 12px; overflow: hidden; }
+.button, input[type=submit], input[type=button], .submit-row input, a.button { border-radius: 8px !important; }
+input[type=text], input[type=email], input[type=search], input[type=date], input[type=number], select, textarea { border-radius: 8px; }
+#nav-sidebar .current-model { background: var(--selected-bg); }

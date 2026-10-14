@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from . import preparacao as servico
 from .preparacao_models import PreparacaoEnvio, NOMES_CATEGORIAS
@@ -123,6 +124,7 @@ def contexto(request, prep, erros, boletos=None):
     return ctx
 
 
+@xframe_options_sameorigin  # permite o painel lateral de PDF do próprio sistema
 def resposta_documento(prep_pk, doc_pk):
     prep = get_object_or_404(PreparacaoEnvio, pk=prep_pk)
     doc = get_object_or_404(prep.documentos, pk=doc_pk)

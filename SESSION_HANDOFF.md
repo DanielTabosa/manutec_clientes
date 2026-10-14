@@ -8,7 +8,7 @@
 3b. ✅ Interface própria (`backend/painel`):
    - ✅ 1ª entrega em 14/10 (meta era 21/10): login, início com lista de trabalho, clientes, ficha do cliente, envio de documentos e preparação completa.
    - ✅ 2ª entrega em 14/10 (meta era 31/10): cadastro e edição de cliente com consulta de CNPJ/CEP, troca de CNPJ, administradora, contatos, administradoras e configuração de destinatários. Responsabilidades seguem no admin.
-   - Pendente, a pedido do usuário: discutir a paleta de cores (hoje navy + verde de confirmação).
+   - ✅ Redesenho em 14/10 com a identidade do site (direção D: azul profundo/azul Manutec/gelo, Inter auto-hospedada, logotipo recriado), mais transições, avisos flutuantes, busca global Ctrl+K, etapas fixas, PDF em painel lateral e tema da retaguarda. Se o usuário não gostar, a reserva combinada é a direção B (teal `#0E9384` + âmbar, menu `#0B3B3C`, Plus Jakarta Sans): trocar só os tokens em `painel/static/painel/app.css`.
 4. ⏸ Implantação **interrompida pelo usuário em 14/10** antes de qualquer mudança; retomar só quando ele pedir. Pendente decisão dele: hospedagem (VPS recomendado; cPanel só com Python App + PostgreSQL; ou PC do escritório) e acesso (internet ou só escritório). Também a renovação de token do Conta Azul (hoje manual).
    - Antes da implantação, sugerido: envio real de uma preparação completa (boleto + nota) para um contato com o e-mail do próprio usuário, ainda não feito.
 5. Homologação com a base definitiva e treinamento.
@@ -18,8 +18,8 @@
 - Migration 0008 aplicada ao banco instalado (backup `.venv/backups/pre_0008_20261014/`). Mudanças de modelo exigem 0009+.
 - `.env` local: SMTP configurado (senha pelo usuário) e `DJANGO_CONTAAZUL_AMBIENTE=producao` (somente GET). `config/test_settings.py` isola os testes dessas integrações.
 - Lógica compartilhada entre admin e painel: `clientes/preparacao_fluxo.py` (preparação) e `clientes/destinatarios_fluxo.py` (destinatários). Cadastros do painel em `painel/cadastros.py`.
-- Design: tokens em `painel/static/painel/app.css`. Revisão Impeccable em contexto único (processo proporcional); pendente uma fonte própria auto-hospedada, que exige autorização para baixar.
-- Validação: 75 testes Django, 56 testes Conta Azul, 14 verificações PostgreSQL descartáveis, `backend/verificar_interface.cjs` e `backend/verificar_cadastros.cjs` (capturas em `.venv/qa/`).
+- Design: tokens em `painel/static/painel/app.css` (direção D); fonte Inter em `painel/static/painel/fontes/`; tema do admin em `painel/static/painel/admin-tema.css` e `backend/templates/admin/base_site.html`.
+- Validação: 76 testes Django, 56 testes Conta Azul, 14 verificações PostgreSQL descartáveis, `backend/verificar_interface.cjs` e `backend/verificar_cadastros.cjs` (capturas em `.venv/qa/`).
 - Servidor local do usuário: aba de terminal "Servidor Manutec" com `manage.py runserver` (autoreload) em `http://127.0.0.1:8000/`.
 
 ## Ferramentas

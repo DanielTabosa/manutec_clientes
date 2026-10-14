@@ -142,3 +142,20 @@ Aprovada pelo usuário depois de ver a primeira; a discussão da paleta de cores
 - Fora desta entrega: responsabilidades (função de contato da administradora por condomínio) continuam no admin.
 
 Validação: 75 testes Django/SQLite (5 novos de cadastros: cliente/CNPJ/administradora, contatos e encerramento, destinatários com conflito de revisão, administradoras e encerramento global, consultas e permissões), 56 testes Conta Azul e detector Impeccable sem apontamentos. `backend/verificar_cadastros.cjs` (Playwright/Edge) em banco descartável: novo cliente com consulta real de CNPJ público, erros de validação, contato, destinatários, administradoras; celular sem rolagem horizontal. O banco foi removido.
+
+### Redesenho com a identidade do site — 14/10/2026
+
+O usuário pediu crítica de design (`/design:design-critique`) e uma interface moderna e fluida, porque não gostava da paleta anterior. Ele indicou o site manutecvalvulas.com.br como referência, com a opção B (teal) como reserva, e autorizou todas as sugestões, incluindo baixar a fonte.
+
+- **Direção D, identidade Manutec:** cores extraídas do site. Azul profundo `#0E2A5C` no menu, azul Manutec `#1F5FBF` nas ações, azul claro `#5E9CE9` no modo escuro, fundo gelo `#F1F3F5`, verde do site `#23A455` só para estados concluídos (`#1B8A47` nos botões, por contraste). Logotipo recriado em HTML/SVG (MANU + válvula + EC, VÁLVULAS, faixa preta SOLUÇÕES HIDRÁULICAS), sem copiar imagem. Fonte Inter variável auto-hospedada (`painel/static/painel/fontes/`, licença OFL incluída).
+- **Fluidez:**
+  - Transições entre páginas (View Transitions no Edge/Chrome).
+  - Avisos flutuantes que fecham sozinhos (erros ficam).
+  - Busca global na barra superior (`/busca/`, Ctrl+K ou "/") em clientes, administradoras e preparações, respeitando permissões.
+  - Barra de etapas fixa na preparação, com destaque da etapa visível, e botões "Continuar".
+  - PDF em painel lateral: a rota de documento permite enquadramento só no próprio sistema (`X-Frame-Options: SAMEORIGIN`).
+  - Arrastar arquivos, carregamento nos botões e caixas de marcação redesenhadas.
+- **Retaguarda (Django admin)** com a mesma identidade: `backend/templates/admin/base_site.html` e `painel/static/painel/admin-tema.css`, com link "Voltar para o sistema". `TEMPLATES.DIRS` passou a incluir `backend/templates`.
+- **Sem mudança de regra,** banco ou migration.
+
+Validação: 76 testes Django (novo: busca global com permissões), 56 Conta Azul, detector Impeccable sem apontamentos e `manage.py check` limpo. Playwright/Edge em banco descartável: `verificar_interface.cjs` e `verificar_cadastros.cjs` aprovados, mais capturas da janela visível (preparação no topo e rolada, painel de PDF, busca, admin, modo escuro, celular). O banco foi removido.
