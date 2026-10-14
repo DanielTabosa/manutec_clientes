@@ -160,3 +160,26 @@ class DownloadTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ListagemParaEscolhaTests(unittest.TestCase):
+    """Busca com escolha pelo usuario: todas as paginas do dia, sem exigir correspondencia unica."""
+
+    def conta(self, n, status='PENDING', nao_pago='500.00', venc='2026-11-13'):
+        return {'id': f'44444444-0000-4000-8000-{n:012d}', 'status': status, 'status_traduzido': 'Em aberto',
+                'total': Decimal('3000.00'), 'nao_pago': Decimal(nao_pago), 'data_vencimento': venc,
+                'descricao': f'Parcela {n}/6', 'cliente': {'id': 'x', 'nome': f'Cliente {n}'}}
+
+    def test_percorre_paginas_e_ignora_quitadas(self):
+        paginas = [{'itens': [self.conta(i) for i in range(1, 3)] + [self.conta(9, status='ACQUITTED', nao_pago='0')]},
+                   {'itens': [self.conta(3), self.conta(4, venc='2026-11-14')]}]
+        get = Mock(side_effect=paginas)
+        with patch.object(boleto, '_cliente_http', return_value=get):
+            contas = boleto.listar_contas(date(2026, 11, 13), 'x', {}, tamanho=3)
+        self.assertEqual([c['descricao'] for c in contas], ['Parcela 1/6', 'Parcela 2/6', 'Parcela 3/6'])
+        self.assertEqual(get.call_args_list[1].args[1]['pagina'], 2)
+
+    def test_lista_truncada_nao_e_aceita(self):
+        get = Mock(return_value={'itens': [self.conta(i) for i in range(1, 3)]})
+        with patch.object(boleto, '_cliente_http', return_value=get), self.assertRaises(ValueError):
+            boleto.listar_contas(date(2026, 11, 13), 'x', {}, paginas=2, tamanho=2)

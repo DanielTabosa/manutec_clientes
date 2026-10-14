@@ -286,28 +286,6 @@ class ContaAzulPreparacaoTests(BasePreparacao):
             with self.assertRaises(ValidationError):
                 p.ler_valor(invalido)
 
-    def test_boleto_do_conta_azul_e_erros(self):
-        from unittest.mock import patch
-        from urllib.error import HTTPError
-        from decimal import Decimal
-        prep = self.nova()
-        venc, valor = date(2026, 11, 13), Decimal('1500.00')
-        with self.assertRaisesMessage(ValidationError, 'não configurada'):
-            p.importar_boleto(prep.pk, venc, valor, self.user)
-        with override_settings(CONTAAZUL_AMBIENTE='producao'):
-            with patch('contaazul_boleto.baixar_pdf', return_value=b'%PDF-1.4\nboleto\n%%EOF\n') as baixar:
-                doc = p.importar_boleto(prep.pk, venc, valor, self.user)
-            self.assertEqual(baixar.call_args.args[:2], (venc, valor))
-            self.assertEqual((doc.categoria, doc.origem, doc.nome_original), ('boleto', 'contaazul', 'boleto-20261113.pdf'))
-            self.assertIn('R$ 1.500,00', doc.referencia)
-            with patch('contaazul_boleto.baixar_pdf', side_effect=HTTPError('https://x', 401, 'n', None, None)):
-                with self.assertRaisesMessage(ValidationError, 'HTTP 401'):
-                    p.importar_boleto(prep.pk, venc, valor, self.user)
-            with patch('contaazul_boleto.baixar_pdf', side_effect=ValueError()):
-                with self.assertRaisesMessage(ValidationError, 'Nenhum boleto único'):
-                    p.importar_boleto(prep.pk, venc, valor, self.user)
-        self.assertEqual(prep.documentos.count(), 1)
-
     def test_zip_anexa_so_notas_do_cliente_emitidas(self):
         from unittest.mock import patch
         prep = self.nova()
@@ -331,15 +309,67 @@ class ContaAzulPreparacaoTests(BasePreparacao):
                 p.importar_nfse_zip(prep.pk, SimpleUploadedFile('x.zip', b'nao e zip'), date(2026, 10, 1), self.user)
         self.assertEqual(prep.documentos.count(), 1)
 
-    def test_painel_busca_boleto(self):
+    CONTAS = [
+        {'id': '11111111-0000-4000-8000-000000000001', 'cliente': 'Outro Prédio', 'descricao': 'Venda 10', 'total': None,
+         'nao_pago': None, 'status': 'Em aberto'},
+        {'id': '11111111-0000-4000-8000-000000000002', 'cliente': 'CONDOMINIO QA', 'descricao': 'Parcela 2/6', 'total': None,
+         'nao_pago': None, 'status': 'Em aberto'},
+    ]
+
+    def contas(self):
+        from decimal import Decimal
+        return [dict(c, total=Decimal('3000.00'), nao_pago=Decimal('500.00')) for c in self.CONTAS]
+
+    def test_lista_parcelas_com_provavel_cliente_primeiro_e_filtro(self):
+        from unittest.mock import patch
+        from decimal import Decimal
+        from urllib.error import HTTPError
+        prep = self.nova()
+        venc = date(2026, 11, 13)
+        with self.assertRaisesMessage(ValidationError, 'não configurada'):
+            p.listar_boletos(prep.pk, venc)
+        with override_settings(CONTAAZUL_AMBIENTE='producao'):
+            with patch('contaazul_boleto.listar_contas', return_value=self.contas()):
+                contas = p.listar_boletos(prep.pk, venc)
+                self.assertEqual([(c['cliente'], c['provavel']) for c in contas], [('CONDOMINIO QA', True), ('Outro Prédio', False)])
+                self.assertEqual(contas[0]['valor_br'], '500,00')
+                self.assertEqual(len(p.listar_boletos(prep.pk, venc, Decimal('500.00'))), 2)
+                self.assertEqual(p.listar_boletos(prep.pk, venc, Decimal('1.00')), [])
+            with patch('contaazul_boleto.listar_contas', side_effect=HTTPError('https://x', 401, 'n', None, None)):
+                with self.assertRaisesMessage(ValidationError, 'HTTP 401'):
+                    p.listar_boletos(prep.pk, venc)
+            with patch('contaazul_boleto.listar_contas', side_effect=ValueError()):
+                with self.assertRaisesMessage(ValidationError, 'Não foi possível listar'):
+                    p.listar_boletos(prep.pk, venc)
+
+    def test_anexa_boleto_da_parcela_escolhida(self):
+        from unittest.mock import patch
+        prep = self.nova()
+        info = {'descricao': 'Parcela 2/6', 'data_vencimento': '2026-11-13', 'nao_pago': 500}
+        with override_settings(CONTAAZUL_AMBIENTE='producao'):
+            with patch('contaazul_boleto.baixar_pdf_parcela', return_value=(b'%PDF-1.4\nparcela\n%%EOF\n', info)) as baixar:
+                doc = p.importar_boleto_parcela(prep.pk, self.CONTAS[1]['id'], self.user)
+            self.assertEqual(baixar.call_args.args[0], self.CONTAS[1]['id'])
+            self.assertEqual((doc.categoria, doc.origem, doc.nome_original), ('boleto', 'contaazul', 'boleto-20261113.pdf'))
+            self.assertEqual(doc.referencia, 'Conta Azul · Parcela 2/6 · venc. 13/11/2026 · R$ 500,00')
+            with patch('contaazul_boleto.baixar_pdf_parcela', side_effect=ValueError()):
+                with self.assertRaisesMessage(ValidationError, 'exatamente uma cobrança registrada'):
+                    p.importar_boleto_parcela(prep.pk, self.CONTAS[0]['id'], self.user)
+        self.assertEqual(prep.documentos.count(), 1)
+
+    def test_painel_lista_e_anexa_parcela(self):
         from unittest.mock import patch
         prep = self.nova()
         self.client.force_login(self.user)
         url = reverse('admin:clientes_preparacaoenvio_change', args=[prep.pk])
         self.assertContains(self.client.get(url), 'Busca no Conta Azul desabilitada')
-        with override_settings(CONTAAZUL_AMBIENTE='producao'), patch('contaazul_boleto.baixar_pdf', return_value=b'%PDF-1.4\nb\n%%EOF\n'):
-            self.assertContains(self.client.get(url), 'Buscar boleto')
-            self.client.post(url, {'acao': 'boleto_contaazul', 'vencimento': '2026-11-13', 'valor': '1.500,00'})
-            self.assertContains(self.client.post(url, {'acao': 'boleto_contaazul', 'vencimento': '', 'valor': '1'}), 'data de vencimento')
+        info = {'descricao': 'Parcela 2/6', 'data_vencimento': '2026-11-13', 'nao_pago': 500}
+        with override_settings(CONTAAZUL_AMBIENTE='producao'), \
+                patch('contaazul_boleto.listar_contas', return_value=self.contas()), \
+                patch('contaazul_boleto.baixar_pdf_parcela', return_value=(b'%PDF-1.4\nb\n%%EOF\n', info)):
+            pagina = self.client.post(url, {'acao': 'listar_boletos', 'vencimento': '2026-11-13', 'valor': ''}).content.decode()
+            self.assertIn('Provável deste cliente', pagina)
+            self.assertLess(pagina.index('CONDOMINIO QA'), pagina.index('Outro Prédio'))
+            self.assertContains(self.client.post(url, {'acao': 'listar_boletos', 'vencimento': ''}), 'data de vencimento')
+            self.client.post(url, {'acao': 'boleto_parcela', 'parcela': self.CONTAS[1]['id']})
         self.assertEqual(prep.documentos.get().origem, 'contaazul')
-        self.assertContains(self.client.get(url), 'Conta Azul')

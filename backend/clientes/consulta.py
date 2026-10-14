@@ -33,27 +33,60 @@ def consultar_cep(cep):
             {"logradouro": "logradouro", "bairro": "bairro", "cidade": "localidade", "estado": "uf"}.items()}
 
 
-def consultar_cnpj(cnpj):
-    cnpj = normalizar_cnpj(cnpj)
-    request = Request(f"https://brasilapi.com.br/api/cnpj/v1/{cnpj}", headers={"Accept": "application/json", "User-Agent": "ManutecClientes/1.0"})
-    try:
-        with urlopen(request, timeout=10) as response:
-            dados = json.loads(response.read(1_000_000))
-    except HTTPError as exc:
-        if exc.code == 404:
-            raise ErroConsulta("CNPJ não encontrado na consulta. Confira o CNPJ ou preencha os dados manualmente.") from exc
-        raise ErroConsulta("Consulta indisponível. Tente novamente ou preencha os dados manualmente.") from exc
-    except (URLError, TimeoutError, OSError, ValueError) as exc:
-        raise ErroConsulta("Consulta indisponível. Tente novamente ou preencha os dados manualmente.") from exc
-    if not isinstance(dados, dict) or dados.get("cnpj") != cnpj:
-        raise ErroConsulta("A consulta retornou dados inconsistentes. Confira os dados manualmente.")
+def _formato_brasilapi(dados):
+    # BrasilAPI e Minha Receita usam o mesmo formato.
     campos = {"razao_social": "razao_social", "nome_fantasia": "nome_fantasia",
               "logradouro": "logradouro", "numero": "numero", "complemento": "complemento",
               "bairro": "bairro", "cidade": "municipio", "estado": "uf", "cep": "cep",
               "telefone": "ddd_telefone_1", "email": "email"}
     resultado = {dest: str(dados.get(origem) or "").strip() for dest, origem in campos.items()}
-    resultado["cep"] = resultado["cep"].replace("-", "").replace(".", "")
     tipo = str(dados.get("descricao_tipo_de_logradouro") or "").strip()
-    if tipo:
-        resultado["logradouro"] = f"{tipo} {resultado['logradouro']}".strip()
-    return resultado
+    return dados.get("cnpj"), resultado, tipo
+
+
+def _formato_cnpjws(dados):
+    est = dados.get("estabelecimento") if isinstance(dados.get("estabelecimento"), dict) else {}
+    cidade = est.get("cidade") if isinstance(est.get("cidade"), dict) else {}
+    estado = est.get("estado") if isinstance(est.get("estado"), dict) else {}
+    texto = lambda v: str(v or "").strip()  # noqa: E731
+    resultado = {"razao_social": texto(dados.get("razao_social")), "nome_fantasia": texto(est.get("nome_fantasia")),
+                 "logradouro": texto(est.get("logradouro")), "numero": texto(est.get("numero")),
+                 "complemento": texto(est.get("complemento")), "bairro": texto(est.get("bairro")),
+                 "cidade": texto(cidade.get("nome")), "estado": texto(estado.get("sigla")), "cep": texto(est.get("cep")),
+                 "telefone": texto(est.get("ddd1")) + texto(est.get("telefone1")), "email": texto(est.get("email"))}
+    return est.get("cnpj"), resultado, texto(est.get("tipo_logradouro"))
+
+
+# Ordem de tentativa: falha ou demora de uma fonte não impede o cadastro se outra responder.
+FONTES_CNPJ = [
+    ("https://brasilapi.com.br/api/cnpj/v1/{cnpj}", _formato_brasilapi, 8),
+    ("https://minhareceita.org/{cnpj}", _formato_brasilapi, 8),
+    ("https://publica.cnpj.ws/cnpj/{cnpj}", _formato_cnpjws, 10),
+]
+
+
+def consultar_cnpj(cnpj):
+    cnpj = normalizar_cnpj(cnpj)
+    nao_encontrado = 0
+    for modelo, formato, timeout in FONTES_CNPJ:
+        request = Request(modelo.format(cnpj=cnpj), headers={"Accept": "application/json", "User-Agent": "ManutecClientes/1.0"})
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                dados = json.loads(response.read(1_000_000))
+            if not isinstance(dados, dict):
+                continue
+            retornado, resultado, tipo = formato(dados)
+        except HTTPError as exc:
+            nao_encontrado += exc.code == 404
+            continue
+        except (URLError, TimeoutError, OSError, ValueError, AttributeError):
+            continue
+        if retornado != cnpj or not resultado["razao_social"]:
+            continue
+        resultado["cep"] = resultado["cep"].replace("-", "").replace(".", "")
+        if tipo and not resultado["logradouro"].upper().startswith(tipo.upper()):
+            resultado["logradouro"] = f"{tipo} {resultado['logradouro']}".strip()
+        return resultado
+    if nao_encontrado == len(FONTES_CNPJ):
+        raise ErroConsulta("CNPJ não encontrado na consulta. Confira o CNPJ ou preencha os dados manualmente.")
+    raise ErroConsulta("Consulta indisponível no momento. Tente novamente em instantes ou preencha os dados manualmente.")

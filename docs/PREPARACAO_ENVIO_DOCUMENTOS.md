@@ -2,6 +2,17 @@
 
 Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado diretamente pela API pública. Integração ao painel, anexos e envio ainda não implementados. Evidências anteriores estão preservadas abaixo como contexto datado.
 
+## Correções após o primeiro teste real — 14/10/2026
+
+O usuário não conseguiu testar porque: (1) os clientes com CNPJ real não tinham boleto único a vencer, e o parcelamento do Antonio Joaquim não foi aceito; (2) a consulta de CNPJ falhou duas vezes ao cadastrar outro cliente.
+
+- **Boleto, causa:** a busca exata consultava só a primeira página (10 itens) e recusava página cheia ou mais de uma conta com mesmo vencimento e valor. Uma sonda de leitura mostrou 50 contas em 45 dias e 5 pares vencimento+valor repetidos. Cada conta traz `cliente.nome` e `descricao`.
+- **Boleto, correção:** no rascunho, **Buscar boletos** pede o vencimento (valor opcional, só para filtrar) e lista todas as contas em aberto do dia, até 10 páginas de 50; lista truncada é recusada. As que parecem do cliente vêm primeiro, por palavras do nome sem termos genéricos. O usuário clica em **Anexar** na parcela certa, e o sistema baixa a única cobrança REGISTRADO dela. Referência: `Conta Azul · <descrição> · venc. · R$ em aberto`. `contaazul_boleto` ganhou `listar_contas` e `baixar_pdf_parcela`; a linha de comando (`baixar_pdf`) não mudou. Listagem real conferida só com contagens, sem nomes ou valores.
+- **CNPJ, causa provável:** instabilidade ou demora da BrasilAPI (limite de 10 s). Agora ela tem fontes reserva: BrasilAPI (8 s) → Minha Receita (8 s, mesmo formato) → CNPJ.ws pública (10 s). As três foram conferidas com um CNPJ público. "Não encontrado" só aparece quando as três respondem 404.
+- **Testes isolados do `.env`:** `config/test_settings.py` zera SMTP e Conta Azul. A falta disso fez dois testes lerem a configuração real.
+
+Validação: 66 testes Django/SQLite, 56 testes Conta Azul (2 novos de listagem paginada) e listagem real somente leitura. Sem migration nova.
+
 ## Conta Azul no fluxo de preparação — 14/10/2026
 
 **Migration 0008 aplicada ao banco instalado em 14/10/2026**, com autorização do usuário. Antes, backup `pg_dump` em `.venv/backups/pre_0008_20261014/pre_0008.dump` (71.055 bytes; SHA-256 em `verification.json`), restaurado em banco temporário com contagens idênticas nas 21 tabelas (208 registros); temporário removido. Depois de aplicar: quatro tabelas novas vazias, nenhuma tabela de domínio alterada (só `auth_permission` +4, `django_content_type` +4 e `django_migrations` +1, como esperado), 7 constraints `prep_*` mais o índice único parcial de documento, e `makemigrations --check` limpo.
@@ -9,7 +20,7 @@ Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado di
 Etapa 3 do plano, autorizada pelo usuário em 14/10/2026 depois de confirmar que o e-mail de teste chegou na caixa de entrada. Implementada e validada com rede simulada; **falta um teste real pelo painel**, com token válido e um boleto e um ZIP reais escolhidos pelo usuário.
 
 - **Configuração:** `DJANGO_CONTAAZUL_AMBIENTE=producao` (ou `desenvolvimento`; vazio desabilita). Usa as credenciais locais já existentes em `.venv/contaazul`, sem lê-las ou exibi-las. O `.env` local foi configurado para produção, somente consultas GET.
-- **Boleto:** no rascunho, informar vencimento e valor (aceita `1.500,00`). Reaproveita `contaazul_boleto.baixar_pdf`, extraída sem mudar o comportamento da linha de comando: exige uma única conta PENDING com vencimento e valor exatos e uma única cobrança REGISTRADO. O PDF entra como **Boleto** com origem "Conta Azul" e referência com vencimento e valor. O usuário visualiza e confere se é do cliente antes de confirmar; a seleção por vencimento e valor não prova o cliente.
+- **Boleto** (substituído pela busca com escolha; ver correções acima): no rascunho, informar vencimento e valor (aceita `1.500,00`). Reaproveita `contaazul_boleto.baixar_pdf`, extraída sem mudar o comportamento da linha de comando: exige uma única conta PENDING com vencimento e valor exatos e uma única cobrança REGISTRADO. O PDF entra como **Boleto** com origem "Conta Azul" e referência com vencimento e valor. O usuário visualiza e confere se é do cliente antes de confirmar; a seleção por vencimento e valor não prova o cliente.
 - **NFS-e:** enviar o ZIP do painel do Conta Azul e a competência. `contaazul_nfse.ler_zip` agora aceita upload e devolve o PDF de cada par, sem gravar o ZIP. Só são consideradas as notas cujo tomador é o **CNPJ atual** do cliente. Elas são conferidas com a API (status EMITIDA; número, RPS, tomador e valor iguais), e só as reconhecidas são anexadas como **Nota fiscal**. Canceladas, divergentes e já anexadas aparecem como pendências, e outros tomadores são ignorados. Sem nota do cliente, a API não é consultada.
 - **Erros:** HTTP 401 orienta a renovação manual com `contaazul_auth.py` (sem renovação automática, decisão anterior preservada). Outras falhas não anexam nada e não expõem dados sensíveis.
 - **Limites:** cada busca ocorre na requisição, com até 13 GETs para boleto e 30 para NFS-e por competência. Com a base de clientes ainda em teste, CNPJs imprecisos impedem a importação de notas, como esperado.

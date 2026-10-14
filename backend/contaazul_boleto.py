@@ -38,14 +38,9 @@ def salvar(destino, conteudo):
             temporario.unlink(missing_ok=True)
 
 
-def baixar_pdf(vencimento, valor, path, estado, log=print):
-    """Retorna o PDF do unico boleto REGISTRADO da unica conta PENDING com vencimento e valor exatos.
-
-    `estado['etapa']` acompanha a etapa para mensagens de falha sem dados sensiveis."""
+def _cliente_http(path):
+    """Funcao GET autenticada com limites de tamanho; somente leitura, sem redirects."""
     path = Path(path)
-    estado['etapa'] = 'configuracao'
-    if not valor.is_finite() or valor <= 0 or valor != valor.quantize(Decimal('0.01')):
-        raise ValueError()
     if not path.is_file():
         raise ValueError()
     token = dotenv_values(path, interpolate=False).get('ACCESS_TOKEN')
@@ -74,23 +69,13 @@ def baixar_pdf(vencimento, valor, path, estado, log=print):
             raise ValueError()
         return data
 
-    estado['etapa'] = 'selecao da conta'
-    rows = get(ROTA + '/buscar', {
-        'pagina': 1, 'tamanho_pagina': 10,
-        'data_vencimento_de': vencimento.isoformat(),
-        'data_vencimento_ate': vencimento.isoformat()}).get('itens')
-    # Uma pagina cheia pode ocultar outra correspondencia: nao selecionar uma amostra parcial.
-    if not isinstance(rows, list) or len(rows) >= 10 or not all(isinstance(r, dict) for r in rows):
-        raise ValueError()
-    matches = [r for r in rows if r.get('status') == 'PENDING'
-               and r.get('data_vencimento') == vencimento.isoformat()
-               and Decimal(str(r.get('total'))) == valor]
-    log('Contas pendentes correspondentes: ' + str(len(matches)))
-    if len(matches) != 1:
-        raise ValueError()
-    parcela = str(UUID(matches[0]['id']))
+    return get
+
+
+def _pdf_da_parcela(get, parcela, estado, log, details=None):
+    parcela = str(UUID(str(parcela)))
     estado['etapa'] = 'selecao da cobranca'
-    details = get('/v1/financeiro/eventos-financeiros/parcelas/' + parcela)
+    details = details or get('/v1/financeiro/eventos-financeiros/parcelas/' + parcela)
     charges = details.get('solicitacoes_cobrancas')
     if not isinstance(charges, list) or not 1 <= len(charges) <= 10:
         raise ValueError()
@@ -109,6 +94,67 @@ def baixar_pdf(vencimento, valor, path, estado, log=print):
         raise ValueError()
     estado['etapa'] = 'download do PDF'
     return get(ROTA + '/cobranca/' + ativas[0] + '/imprimir', pdf=True)
+
+
+def baixar_pdf(vencimento, valor, path, estado, log=print):
+    """Retorna o PDF do unico boleto REGISTRADO da unica conta PENDING com vencimento e valor exatos.
+
+    `estado['etapa']` acompanha a etapa para mensagens de falha sem dados sensiveis."""
+    estado['etapa'] = 'configuracao'
+    if not valor.is_finite() or valor <= 0 or valor != valor.quantize(Decimal('0.01')):
+        raise ValueError()
+    get = _cliente_http(path)
+    estado['etapa'] = 'selecao da conta'
+    rows = get(ROTA + '/buscar', {
+        'pagina': 1, 'tamanho_pagina': 10,
+        'data_vencimento_de': vencimento.isoformat(),
+        'data_vencimento_ate': vencimento.isoformat()}).get('itens')
+    # Uma pagina cheia pode ocultar outra correspondencia: nao selecionar uma amostra parcial.
+    if not isinstance(rows, list) or len(rows) >= 10 or not all(isinstance(r, dict) for r in rows):
+        raise ValueError()
+    matches = [r for r in rows if r.get('status') == 'PENDING'
+               and r.get('data_vencimento') == vencimento.isoformat()
+               and Decimal(str(r.get('total'))) == valor]
+    log('Contas pendentes correspondentes: ' + str(len(matches)))
+    if len(matches) != 1:
+        raise ValueError()
+    return _pdf_da_parcela(get, matches[0]['id'], estado, log)
+
+
+def listar_contas(vencimento, path, estado, paginas=10, tamanho=50):
+    """Todas as contas a receber em aberto do dia (para escolha pelo usuario). Lista truncada falha."""
+    estado['etapa'] = 'configuracao'
+    get = _cliente_http(path)
+    estado['etapa'] = 'listagem das contas'
+    contas = []
+    for pagina in range(1, paginas + 1):
+        rows = get(ROTA + '/buscar', {'pagina': pagina, 'tamanho_pagina': tamanho,
+                                      'data_vencimento_de': vencimento.isoformat(),
+                                      'data_vencimento_ate': vencimento.isoformat()}).get('itens')
+        if not isinstance(rows, list) or len(rows) > tamanho or not all(isinstance(r, dict) for r in rows):
+            raise ValueError()
+        for r in rows:
+            cliente = r.get('cliente') if isinstance(r.get('cliente'), dict) else {}
+            nao_pago = Decimal(str(r.get('nao_pago') if r.get('nao_pago') is not None else r.get('total')))
+            if r.get('status') == 'ACQUITTED' or nao_pago <= 0 or r.get('data_vencimento') != vencimento.isoformat():
+                continue
+            contas.append({'id': str(UUID(str(r['id']))), 'cliente': str(cliente.get('nome') or '').strip(),
+                           'descricao': str(r.get('descricao') or '').strip(), 'total': Decimal(str(r.get('total'))),
+                           'nao_pago': nao_pago, 'status': str(r.get('status_traduzido') or r.get('status') or '')})
+        if len(rows) < tamanho:
+            return contas
+    raise ValueError()
+
+
+def baixar_pdf_parcela(parcela, path, estado, log=print):
+    """PDF do unico boleto REGISTRADO da parcela escolhida; devolve tambem descricao, vencimento e valor."""
+    estado['etapa'] = 'configuracao'
+    get = _cliente_http(path)
+    estado['etapa'] = 'selecao da parcela'
+    detalhes = get('/v1/financeiro/eventos-financeiros/parcelas/' + str(UUID(str(parcela))))
+    info = {'descricao': str(detalhes.get('descricao') or '').strip(), 'data_vencimento': detalhes.get('data_vencimento'),
+            'nao_pago': detalhes.get('nao_pago')}
+    return _pdf_da_parcela(get, parcela, estado, log, details=detalhes), info
 
 
 def executar(vencimento, valor, *, path=CONFIG):

@@ -1,10 +1,11 @@
-# Retomada — 0008 aplicada; aguardando teste real do Conta Azul pelo painel
+# Retomada — correções feitas; aguardando novo teste real e início da interface própria
 
 ## Plano aprovado em 14/10/2026 (meta: MVP em produção em 27/11/2026)
 
 1. ✅ Preparação no painel, com histórico, retrato e prevenção de reenvio. Regras aprovadas.
 2. ✅ Envio por SMTP: conta `financeiro@manutecvalvulas.com.br` (465 SSL) no `.env`. Teste chegou na caixa de entrada (confirmado pelo cPanel em 14/10). DMARC ausente: recomendação futura.
-3. 🟡 Conta Azul no fluxo: implementada e validada com rede simulada. **Falta o teste real pelo painel**, com token válido e um boleto e um ZIP escolhidos pelo usuário. Migration 0008 já aplicada; o roteiro do teste foi entregue ao usuário em 14/10.
+3. 🟡 Conta Azul no fluxo. O primeiro teste real falhou (boleto exato não aceita parcelamento; consulta de CNPJ instável) e foi corrigido em 14/10: busca de boleto com escolha da parcela e CNPJ com fontes reserva. Implementada e validada com rede simulada. **Falta o teste real pelo painel**, com token válido e um boleto e um ZIP escolhidos pelo usuário. Migration 0008 já aplicada; o roteiro do teste foi entregue ao usuário em 14/10.
+3b. **Interface própria** pedida pelo usuário em 14/10 ("a atual dá agonia"). Proposta: telas Django server-rendered com os tokens do protótipo, sem SPA. Começa depois do novo teste real. Primeira entrega para revisão em 21/10 (login, layout, clientes, preparação); completa até 31/10, mantendo a produção em 27/11. O admin fica para retaguarda.
 4. Implantação: hospedagem a definir pelo usuário, HTTPS, DEBUG desligado, segredos, backup e restauração. Decidir a renovação de token do Conta Azul em produção (hoje é manual).
 5. Homologação com a base definitiva e treinamento.
 

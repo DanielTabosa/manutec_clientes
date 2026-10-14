@@ -271,22 +271,61 @@ def _rascunho_sem_bloqueio(preparacao_id):
     return prep
 
 
-def importar_boleto(preparacao_id, vencimento, valor, autor):
-    """Baixa (somente GET) o boleto único com vencimento e valor exatos; o usuário confere o PDF no rascunho."""
+def _palavras(texto):
+    import unicodedata
+    texto = unicodedata.normalize('NFKD', texto or '').encode('ascii', 'ignore').decode().lower()
+    genericas = {'condominio', 'cond', 'edificio', 'ed', 'residencial', 'res', 'do', 'da', 'de', 'dos', 'das', 'e', 'ltda', 'me', 'sa'}
+    return {p for p in ''.join(c if c.isalnum() else ' ' for c in texto).split() if len(p) > 1 and p not in genericas}
+
+
+def listar_boletos(preparacao_id, vencimento, valor=None):
+    """Contas em aberto do vencimento, com as que parecem do cliente primeiro; o usuário escolhe a parcela."""
     import contaazul_boleto
+    caminho = contaazul_config()
+    if not caminho:
+        raise ValidationError('Busca no Conta Azul não configurada (DJANGO_CONTAAZUL_AMBIENTE).')
+    prep = _rascunho_sem_bloqueio(preparacao_id)
+    estado = {'etapa': 'configuracao'}
+    try:
+        contas = contaazul_boleto.listar_contas(vencimento, caminho, estado)
+    except Exception as exc:
+        raise _erro_contaazul(exc, estado['etapa']) or ValidationError(
+            f'Não foi possível listar as contas de {vencimento:%d/%m/%Y} no Conta Azul (etapa: {estado["etapa"]}).')
+    if valor is not None:
+        contas = [c for c in contas if valor in (c['total'], c['nao_pago'])]
+    alvo = _palavras(f'{prep.cliente.razao_social} {prep.cliente.nome_fantasia or ""}')
+    for c in contas:
+        c['provavel'] = bool(alvo & _palavras(c['cliente']))
+        c['valor_br'] = _reais(c['nao_pago'])
+    return sorted(contas, key=lambda c: (not c['provavel'], c['cliente'].lower(), c['descricao']))
+
+
+def importar_boleto_parcela(preparacao_id, parcela_id, autor):
+    """Baixa (somente GET) o boleto registrado da parcela escolhida pelo usuário e anexa ao rascunho."""
+    import contaazul_boleto
+    from datetime import date
+    from decimal import Decimal
     caminho = contaazul_config()
     if not caminho:
         raise ValidationError('Busca no Conta Azul não configurada (DJANGO_CONTAAZUL_AMBIENTE).')
     _rascunho_sem_bloqueio(preparacao_id)
     estado = {'etapa': 'configuracao'}
     try:
-        dados = contaazul_boleto.baixar_pdf(vencimento, valor, caminho, estado, log=lambda *_: None)
+        dados, info = contaazul_boleto.baixar_pdf_parcela(parcela_id, caminho, estado, log=lambda *_: None)
     except Exception as exc:
         raise _erro_contaazul(exc, estado['etapa']) or ValidationError(
-            f'Nenhum boleto único encontrado para vencimento {vencimento:%d/%m/%Y} e valor R$ {_reais(valor)} '
-            f'(etapa: {estado["etapa"]}). É preciso exatamente uma conta pendente e uma cobrança registrada.')
-    return _anexar_bytes(preparacao_id, f'boleto-{vencimento:%Y%m%d}.pdf', dados, 'boleto',
-                         f'Conta Azul · venc. {vencimento:%d/%m/%Y} · R$ {_reais(valor)}', autor, origem='contaazul')
+            f'Não foi possível obter o boleto desta parcela (etapa: {estado["etapa"]}). '
+            'A parcela precisa ter exatamente uma cobrança registrada no Conta Azul.')
+    try:
+        venc = date.fromisoformat(str(info['data_vencimento']))
+        partes = [info['descricao'][:50], f'venc. {venc:%d/%m/%Y}']
+        nome = f'boleto-{venc:%Y%m%d}.pdf'
+    except ValueError:
+        partes, nome = [info['descricao'][:50]], 'boleto.pdf'
+    if info.get('nao_pago') is not None:
+        partes.append(f"R$ {_reais(Decimal(str(info['nao_pago'])))}")
+    return _anexar_bytes(preparacao_id, nome, dados, 'boleto', 'Conta Azul · ' + ' · '.join(p for p in partes if p),
+                         autor, origem='contaazul')
 
 
 def importar_nfse_zip(preparacao_id, arquivo, competencia, autor):

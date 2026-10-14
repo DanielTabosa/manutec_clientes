@@ -75,13 +75,18 @@ class PreparacaoEnvioAdmin(admin.ModelAdmin):
             if not exigida:
                 raise PermissionDenied
             try:
-                self._executar(request, prep, acao)
+                resultado = self._executar(request, prep, acao)
             except ValidationError as exc:
                 erros = exc.messages
             else:
+                if isinstance(resultado, dict):
+                    return self._pagina(request, prep, pode_editar, pode_confirmar, erros, boletos=resultado['boletos'])
                 return redirect(request.path + {'salvar_texto': '#revisao', 'confirmar': '#revisao', 'enviar': '#envio'}.get(acao, '#documentos'))
+        return self._pagina(request, prep, pode_editar, pode_confirmar, erros)
+
+    def _pagina(self, request, prep, pode_editar, pode_confirmar, erros, boletos=None):
         prep.refresh_from_db()
-        contexto = dict(self.admin_site.each_context(request), opts=self.model._meta, original=prep, prep=prep,
+        contexto = dict(self.admin_site.each_context(request), boletos=boletos, opts=self.model._meta, original=prep, prep=prep,
                         title=f'Preparação {prep.pk} — {prep.cliente}', erros=erros, categorias=NOMES_CATEGORIAS.items(),
                         pode_editar=pode_editar and prep.status == 'rascunho',
                         pode_confirmar=pode_confirmar and prep.status == 'rascunho',
@@ -120,12 +125,16 @@ class PreparacaoEnvioAdmin(admin.ModelAdmin):
                 messages.success(request, f'{anexados} documento(s) anexado(s).')
             if falhas:
                 raise ValidationError(falhas)
-        elif acao == 'boleto_contaazul':
+        elif acao == 'listar_boletos':
             try:
                 vencimento = date.fromisoformat(post.get('vencimento', ''))
             except ValueError:
                 raise ValidationError('Informe a data de vencimento do boleto.')
-            doc = servico.importar_boleto(prep.pk, vencimento, servico.ler_valor(post.get('valor')), request.user)
+            valor = servico.ler_valor(post['valor']) if post.get('valor', '').strip() else None
+            return {'boletos': dict(vencimento=vencimento, valor=post.get('valor', '').strip(),
+                                    contas=servico.listar_boletos(prep.pk, vencimento, valor))}
+        elif acao == 'boleto_parcela':
+            doc = servico.importar_boleto_parcela(prep.pk, post.get('parcela', ''), request.user)
             messages.success(request, f'Boleto do Conta Azul anexado ({doc.referencia}). Visualize e confira se é deste cliente.')
         elif acao == 'zip_nfse':
             arquivo = request.FILES.get('zip')

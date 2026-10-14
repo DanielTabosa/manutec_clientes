@@ -1,6 +1,6 @@
 from datetime import timedelta
 from unittest.mock import patch, MagicMock
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 from django.contrib.auth.models import Permission, User
 from django.db import connection
@@ -374,6 +374,22 @@ class ClienteAPITests(TransactionTestCase):
         self.assertEqual(dados["cidade"], "Fortaleza")
         with patch("clientes.consulta.urlopen", side_effect=URLError("offline")):
             with self.assertRaises(ErroConsulta):
+                consultar_cnpj("12345678000100")
+
+    def test_consulta_usa_fontes_reserva(self):
+        from .consulta import consultar_cnpj, ErroConsulta
+        ws = MagicMock()
+        ws.__enter__.return_value.read.return_value = ('{"razao_social":"Condomínio Reserva","estabelecimento":{"cnpj":"12345678000100",'
+            '"tipo_logradouro":"Rua","logradouro":"Teste","numero":"10","cidade":{"nome":"Fortaleza"},"estado":{"sigla":"CE"},'
+            '"cep":"60000000","ddd1":"85","telefone1":"33334444"}}').encode()
+        nao_achou = HTTPError("https://x", 404, "nao encontrado", None, None)
+        with patch("clientes.consulta.urlopen", side_effect=[URLError("lenta"), nao_achou, ws]) as consulta:
+            dados = consultar_cnpj("12345678000100")
+        self.assertEqual(consulta.call_count, 3)
+        self.assertEqual((dados["razao_social"], dados["logradouro"], dados["cidade"], dados["telefone"]),
+                         ("Condomínio Reserva", "Rua Teste", "Fortaleza", "8533334444"))
+        with patch("clientes.consulta.urlopen", side_effect=[HTTPError("https://x", 404, "n", None, None) for _ in range(3)]):
+            with self.assertRaisesMessage(ErroConsulta, "não encontrado"):
                 consultar_cnpj("12345678000100")
 
     def test_consulta_exige_permissao_e_cnpj_valido(self):

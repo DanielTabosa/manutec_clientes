@@ -47,13 +47,13 @@
     {% if contaazul %}
     <p class="prep-ajuda">Somente consulta. Os documentos entram no rascunho para você visualizar e conferir antes de confirmar.</p>
     <div class="prep-contaazul">
-      <form method="post" class="prep-cartao">{% csrf_token %}
-        <input type="hidden" name="acao" value="boleto_contaazul">
+      <form method="post" class="prep-cartao" action="#boletos">{% csrf_token %}
+        <input type="hidden" name="acao" value="listar_boletos">
         <p class="prep-cartao-titulo">Boleto</p>
-        <div class="prep-campo"><label for="vencimento">Vencimento</label><input type="date" id="vencimento" name="vencimento" required></div>
-        <div class="prep-campo"><label for="valor">Valor (R$)</label><input type="text" id="valor" name="valor" inputmode="decimal" placeholder="1.500,00" required></div>
-        <p class="prep-dica">Exige uma única conta pendente com esse vencimento e valor, com cobrança registrada.</p>
-        <button type="submit">Buscar boleto</button>
+        <div class="prep-campo"><label for="vencimento">Vencimento</label><input type="date" id="vencimento" name="vencimento" value="{{ boletos.vencimento|date:'Y-m-d' }}" required></div>
+        <div class="prep-campo"><label for="valor">Valor (R$) <span class="prep-opcional">(opcional, para filtrar)</span></label><input type="text" id="valor" name="valor" inputmode="decimal" placeholder="1.500,00" value="{{ boletos.valor }}"></div>
+        <p class="prep-dica">Lista as contas em aberto do dia, inclusive parcelas. Você escolhe qual anexar.</p>
+        <button type="submit">Buscar boletos</button>
       </form>
       <form method="post" enctype="multipart/form-data" class="prep-cartao">{% csrf_token %}
         <input type="hidden" name="acao" value="zip_nfse">
@@ -64,6 +64,23 @@
         <button type="submit">Importar notas</button>
       </form>
     </div>
+    {% if boletos %}
+    <div class="prep-boletos" id="boletos">
+      <p class="prep-cartao-titulo">Contas em aberto em {{ boletos.vencimento|date:"d/m/Y" }}{% if boletos.valor %} com valor R$ {{ boletos.valor }}{% endif %}: {{ boletos.contas|length }}</p>
+      {% if boletos.contas %}
+      <table class="prep-tabela">
+        <thead><tr><th>Cliente no Conta Azul</th><th>Descrição</th><th>Em aberto</th><th><span class="prep-sr">Ação</span></th></tr></thead>
+        <tbody>{% for c in boletos.contas %}<tr data-conta{% if c.provavel %} class="prep-provavel"{% endif %}>
+          <td>{{ c.cliente|default:"—" }}{% if c.provavel %} <span class="prep-chip prep-envio-aceito">Provável deste cliente</span>{% endif %}</td>
+          <td>{{ c.descricao|default:"—" }}<div class="prep-meta">{{ c.status }}</div></td>
+          <td>R$ {{ c.valor_br }}</td>
+          <td><form method="post">{% csrf_token %}<input type="hidden" name="acao" value="boleto_parcela"><input type="hidden" name="parcela" value="{{ c.id }}"><button type="submit" aria-label="Anexar boleto de {{ c.cliente }} — {{ c.descricao }}">Anexar</button></form></td>
+        </tr>{% endfor %}</tbody>
+      </table>
+      <p class="prep-dica">Confira o cliente e a parcela antes de anexar; o PDF ainda poderá ser visualizado e removido no rascunho.</p>
+      {% else %}<p class="prep-vazio">Nenhuma conta em aberto nesse vencimento{% if boletos.valor %} com esse valor{% endif %}.</p>{% endif %}
+    </div>
+    {% endif %}
     {% else %}<p class="prep-dica">Busca no Conta Azul desabilitada neste servidor (DJANGO_CONTAAZUL_AMBIENTE).</p>{% endif %}
     {% endif %}
   </section>
