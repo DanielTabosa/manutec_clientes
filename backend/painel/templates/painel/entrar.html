@@ -1,0 +1,32 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Entrar{% endblock %}
+{% block corpo %}
+<div class="auth">
+  <aside class="auth-side">
+    <div class="brand" style="padding:0"><span class="brand-mark" aria-hidden="true">M</span><span class="brand-text"><strong>Manutec Válvulas</strong><span>Clientes e documentos</span></span></div>
+    <div>
+      <h2>Boletos e notas no lugar certo, para as pessoas certas.</h2>
+      <p>Cadastro de condomínios, destinatários por categoria e envio conferido de documentos.</p>
+      <ul class="auth-points">
+        <li><svg class="i"><use href="#i-check"/></svg>Cada contato recebe só o que foi configurado</li>
+        <li><svg class="i"><use href="#i-check"/></svg>Bloqueio de reenvio do mesmo documento</li>
+        <li><svg class="i"><use href="#i-check"/></svg>Histórico de tudo o que foi preparado e enviado</li>
+      </ul>
+    </div>
+    <p class="small" style="margin:0">Uso interno da Manutec Válvulas.</p>
+  </aside>
+  <main class="auth-main">
+    <div class="auth-card">
+      <h1>Entrar</h1>
+      <p class="muted">Use seu usuário e senha do sistema.</p>
+      {% if form.errors %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><span>Usuário ou senha incorretos. Confira e tente novamente.</span></div>{% endif %}
+      <form method="post" class="stack" novalidate>{% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="field"><label for="id_username">Usuário</label><input class="input" type="text" name="username" id="id_username" autocomplete="username" autocapitalize="none" value="{{ form.username.value|default:'' }}" required autofocus></div>
+        <div class="field"><label for="id_password">Senha</label><input class="input" type="password" name="password" id="id_password" autocomplete="current-password" required></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;min-height:44px">Entrar</button>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

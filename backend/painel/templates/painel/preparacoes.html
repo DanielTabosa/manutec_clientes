@@ -1,0 +1,32 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Envio de documentos{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Envio de documentos</h1>
+    <p class="lead">Preparações de boletos, notas e outros documentos, do rascunho ao envio.</p>
+  </div>
+  {% if perms.clientes.add_preparacaoenvio %}<div class="actions"><a class="btn btn-primary" href="{% url 'painel:clientes' %}?preparar=1"><svg class="i"><use href="#i-plus"/></svg>Preparar envio</a></div>{% endif %}
+</div>
+
+<section class="card">
+  <form class="toolbar" method="get" role="search">
+    <nav class="tabs" aria-label="Filtrar por situação">{% for valor, nome in filtros %}<a href="?{% if valor %}status={{ valor }}{% endif %}{% if termo %}&q={{ termo|urlencode }}{% endif %}" {% if status == valor %}aria-current="true"{% endif %}>{{ nome }}</a>{% endfor %}</nav>
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    <div class="search"><svg class="i"><use href="#i-search"/></svg><label class="sr" for="q">Buscar por cliente</label><input class="input" type="search" id="q" name="q" value="{{ termo }}" placeholder="Buscar por cliente" autocomplete="off"></div>
+  </form>
+  {% if linhas %}
+  <div class="table-wrap"><table class="table responsive">
+    <thead><tr><th>Cliente</th><th>Situação</th><th>Envio</th><th>Criada</th><th>Confirmada</th></tr></thead>
+    <tbody>{% for p, envio in linhas %}<tr data-preparacao>
+      <td data-label="Cliente"><a class="row-link" href="{% url 'painel:preparacao' p.pk %}">{{ p.cliente }}</a><div class="row-sub">Preparação {{ p.pk }}</div></td>
+      <td data-label="Situação">{% include "painel/_status.html" with status=p.status rotulo=p.get_status_display %}</td>
+      <td data-label="Envio">{{ envio|default:"—" }}</td>
+      <td data-label="Criada">{{ p.criada_em|date:"d/m/Y H:i" }}<div class="row-sub">{{ p.criada_por|default:"" }}</div></td>
+      <td data-label="Confirmada">{{ p.confirmada_em|date:"d/m/Y H:i"|default:"—" }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% include "painel/_paginas.html" %}
+  {% else %}<div class="empty"><strong>Nada por aqui</strong>{% if termo or status %}Nenhuma preparação com esses filtros.{% else %}Comece em “Preparar envio”.{% endif %}</div>{% endif %}
+</section>
+{% endblock %}

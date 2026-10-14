@@ -1,0 +1,51 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Início{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Olá, {{ user.first_name|default:user.username }}</h1>
+    <p class="lead">{% if ve_preparacoes %}{% if total_rascunhos or total_pendencias %}{{ total_rascunhos }} rascunho(s) em aberto e {{ total_pendencias }} envio(s) com pendência.{% else %}Nada pendente no envio de documentos.{% endif %} {{ enviados_mes }} e-mail(s) aceito(s) neste mês.{% else %}Consulte os clientes pelo menu.{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% if perms.clientes.view_cliente %}<a class="btn" href="{% url 'painel:clientes' %}"><svg class="i"><use href="#i-search"/></svg>Buscar cliente</a>{% endif %}
+    {% if perms.clientes.add_preparacaoenvio %}<a class="btn btn-primary" href="{% url 'painel:clientes' %}?preparar=1"><svg class="i"><use href="#i-plus"/></svg>Preparar envio</a>{% endif %}
+  </div>
+</div>
+
+{% if ve_preparacoes %}
+<div class="grid grid-2">
+  <section class="card" aria-labelledby="t-pend">
+    <div class="card-head"><h2 id="t-pend">Envios com pendência <span class="count">{{ total_pendencias }}</span></h2>{% if total_pendencias > 6 %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}?status=confirmada">Ver todos</a>{% endif %}</div>
+    {% if pendencias %}<ul class="worklist">{% for p in pendencias %}<li><a href="{% url 'painel:preparacao' p.pk %}#envio">
+      <span class="worklist-main"><strong>{{ p.cliente }}</strong><span class="row-sub">Preparação {{ p.pk }} · confirmada em {{ p.confirmada_em|date:"d/m H:i" }}</span></span>
+      <span class="chips">{% if p.falhas %}<span class="chip chip-error">{{ p.falhas }} com falha</span>{% endif %}{% if p.pendentes %}<span class="chip chip-warn">{{ p.pendentes }} a enviar</span>{% endif %}</span>
+      <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
+    {% else %}<div class="empty"><strong>Tudo enviado</strong>Nenhuma preparação confirmada aguardando envio.</div>{% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="t-rasc">
+    <div class="card-head"><h2 id="t-rasc">Rascunhos em aberto <span class="count">{{ total_rascunhos }}</span></h2>{% if total_rascunhos > 6 %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}?status=rascunho">Ver todos</a>{% endif %}</div>
+    {% if rascunhos %}<ul class="worklist">{% for p in rascunhos %}<li><a href="{% url 'painel:preparacao' p.pk %}">
+      <span class="worklist-main"><strong>{{ p.cliente }}</strong><span class="row-sub">Preparação {{ p.pk }} · criada em {{ p.criada_em|date:"d/m H:i" }}{% if p.criada_por %} por {{ p.criada_por }}{% endif %}</span></span>
+      <span class="chips"><span class="chip">{% if p.docs %}{{ p.docs }} documento(s){% else %}Sem documentos{% endif %}</span></span>
+      <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
+    {% else %}<div class="empty"><strong>Nenhum rascunho</strong>Comece em “Preparar envio”.</div>{% endif %}
+  </section>
+</div>
+
+<section class="card" style="margin-top:24px" aria-labelledby="recentes">
+  <div class="card-head"><h2 id="recentes">Preparações recentes</h2><a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}">Ver todas<svg class="i"><use href="#i-arrow"/></svg></a></div>
+  {% if recentes %}
+  <div class="table-wrap"><table class="table responsive">
+    <thead><tr><th>Cliente</th><th>Situação</th><th>Envio</th><th>Confirmada</th></tr></thead>
+    <tbody>{% for p, envio in recentes %}<tr>
+      <td data-label="Cliente"><a class="row-link" href="{% url 'painel:preparacao' p.pk %}">{{ p.cliente }}</a><div class="row-sub">Preparação {{ p.pk }}</div></td>
+      <td data-label="Situação">{% include "painel/_status.html" with status=p.status rotulo=p.get_status_display %}</td>
+      <td data-label="Envio">{{ envio|default:"—" }}</td>
+      <td data-label="Confirmada" class="num-data">{{ p.confirmada_em|date:"d/m/Y H:i"|default:"—" }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<div class="empty"><strong>Nenhuma preparação confirmada ainda</strong>As confirmadas e canceladas aparecem aqui.</div>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "painel/base.html" %}
+{% load painel %}
+{% block titulo %}Clientes{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Clientes</h1>
+    <p class="lead">{% if request.GET.preparar %}Escolha o cliente para preparar o envio de documentos.{% else %}Condomínios atendidos, com CNPJ e administradora atuais.{% endif %}</p>
+  </div>
+  {% if perms.clientes.add_cliente %}<div class="actions"><a class="btn" href="{% url 'admin:clientes_cliente_add' %}"><svg class="i"><use href="#i-plus"/></svg>Novo cliente</a></div>{% endif %}
+</div>
+
+<section class="card">
+  <form class="toolbar" method="get" role="search">
+    {% if request.GET.preparar %}<input type="hidden" name="preparar" value="1">{% endif %}
+    <div class="search"><svg class="i"><use href="#i-search"/></svg><label class="sr" for="q">Buscar cliente</label><input class="input" type="search" id="q" name="q" value="{{ termo }}" placeholder="Nome, CNPJ ou cidade" autocomplete="off"></div>
+    <span class="muted small">{{ pagina.paginator.count }} cliente(s)</span>
+  </form>
+  {% if pagina.object_list %}
+  <div class="table-wrap"><table class="table responsive">
+    <thead><tr><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th>Administradora</th><th><span class="sr">Ações</span></th></tr></thead>
+    <tbody>{% for c in pagina %}<tr data-cliente>
+      <td data-label="Cliente"><a class="row-link" href="{% url 'painel:cliente' c.pk %}">{{ c.razao_social }}</a>{% if c.nome_fantasia %}<div class="row-sub">{{ c.nome_fantasia }}</div>{% endif %}</td>
+      <td data-label="CNPJ" class="num-data">{{ c.cnpj_atual|cnpj|default:"—" }}</td>
+      <td data-label="Cidade">{% if c.cidade %}{{ c.cidade }}{% if c.estado %}/{{ c.estado }}{% endif %}{% else %}—{% endif %}</td>
+      <td data-label="Administradora">{{ c.administradora_atual|default:"Sem administradora" }}</td>
+      <td class="acoes">{% if perms.clientes.add_preparacaoenvio %}<form class="inline-form" method="post" action="{% url 'painel:nova_preparacao' %}">{% csrf_token %}<input type="hidden" name="cliente" value="{{ c.pk }}"><button class="btn btn-sm {% if request.GET.preparar %}btn-primary{% endif %}" type="submit" aria-label="Preparar envio para {{ c.razao_social }}"><svg class="i"><use href="#i-send"/></svg>Preparar envio</button></form>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% include "painel/_paginas.html" %}
+  {% else %}<div class="empty"><strong>Nenhum cliente encontrado</strong>{% if termo %}Confira a busca ou tente parte do nome.{% else %}Cadastre o primeiro cliente.{% endif %}</div>{% endif %}
+</section>
+{% endblock %}

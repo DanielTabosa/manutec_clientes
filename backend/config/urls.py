@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/v1/administradoras/<int:pk>/destinatarios/historico/', HistoricoDestinatariosView.as_view(), {'escopo': 'administradora'}),
     path('api/v1/contatos-administradora/<int:pk>/encerrar/', EncerrarContatoAdministradoraView.as_view()),
     path("admin/", admin.site.urls),
+    path("", include("painel.urls")),
     path("api/v1/", include(router.urls)),
     path("api-auth/", include("rest_framework.urls")),
 ]

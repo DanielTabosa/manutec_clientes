@@ -9,7 +9,7 @@ Centralizar clientes, contatos, administradoras, responsabilidades e destinatár
 ## Stack e arquitetura
 
 - Python 3.12.14; Django 5.2.17 LTS; DRF 3.16.1; PostgreSQL 18; psycopg 3.3.6; python-dotenv 1.2.3. Dependências: `backend/requirements.lock.txt`.
-- Aplicação Django, atualmente concentrada em `clientes`, com painel admin, API e serviços compartilhados para cadastro/CNPJ/vínculos de administradora; frontend próprio ainda não definido.
+- Aplicação Django com o app `clientes` (domínio, admin de retaguarda, API e serviços) e o app `painel` (interface própria de operação, desde 14/10/2026).
 - Sete modelos `managed=False`: tabelas de domínio criadas pelo SQL. Instalação nova exige schema uma vez e migrations complementares; nunca reaplicar schema em banco existente.
 - ID interno permanente; CNPJ separado em histórico. Datas locais America/Fortaleza, `USE_TZ=False`, compatíveis com TIMESTAMP sem fuso.
 - Autenticação por sessão e permissões por modelo. Sem exclusão no painel/API. Configuração de desenvolvimento local.
@@ -105,3 +105,27 @@ Etapa 3 implementada em 14/10/2026: no rascunho de preparação, busca de boleto
 **Migration 0008 aplicada ao banco instalado em 14/10/2026**, com autorização do usuário. Antes, backup `pg_dump` em `.venv/backups/pre_0008_20261014/pre_0008.dump` (71.055 bytes; SHA-256 em `verification.json`), restaurado em banco temporário com contagens idênticas nas 21 tabelas (208 registros); temporário removido. Depois de aplicar: quatro tabelas novas vazias, nenhuma tabela de domínio alterada (só `auth_permission` +4, `django_content_type` +4 e `django_migrations` +1, como esperado), 7 constraints `prep_*` mais o índice único parcial de documento, e `makemigrations --check` limpo.
 
 Correções de 14/10/2026 após o primeiro teste real: busca de boleto com escolha da parcela (lista todas as contas em aberto do vencimento, com as prováveis do cliente primeiro) e consulta de CNPJ com fontes reserva (BrasilAPI → Minha Receita → CNPJ.ws). 66 testes Django e 56 Conta Azul aprovados. Detalhes em [preparação do envio](docs/PREPARACAO_ENVIO_DOCUMENTOS.md).
+
+## Interface própria de operação — 14/10/2026
+
+Pedida pelo usuário em 14/10/2026, depois de aprovar o teste real da etapa 3 (boleto da parcela e cadastro com consulta de CNPJ funcionaram). Entregue a primeira parte, prevista para 21/10.
+
+- **App `painel`** (Django server-rendered, sem SPA nem recursos externos), na raiz do site: `/entrar/`, `/` (início), `/clientes/`, `/clientes/<id>/`, `/preparacoes/`, `/preparacoes/<id>/`. O admin continua em `/admin/` como retaguarda, com link no menu para equipe.
+- **Telas:**
+  - Login próprio.
+  - Início como lista de trabalho: envios com pendência e rascunhos em aberto, com links diretos, mais as preparações recentes.
+  - Clientes com busca por nome, CNPJ ou cidade, CNPJ e administradora atuais, e "Preparar envio" em cada linha.
+  - Ficha do cliente: quem recebe documentos (destinatários efetivos), cadastro, contatos vigentes e preparações.
+  - Envio de documentos com filtro por situação.
+  - Tela de preparação completa (anexos, Conta Azul, destinatários, confirmação, envio).
+- **Lógica única:** `clientes/preparacao_fluxo.py` concentra ações, permissões e contexto da preparação, usados pelo admin e pela interface. Não houve mudança de regra.
+- **Permissões:** as mesmas do modelo. Anônimo vai para o login; sem permissão recebe 403. Itens de menu e botões aparecem conforme a permissão.
+- **Design:** tokens em três camadas em `painel/static/painel/app.css` (navy institucional, verde só para confirmar e enviar, fontes do sistema), modo claro/escuro automático, foco visível, tabelas que viram cartões no celular, menu em gaveta abaixo de 900 px e proteção contra clique duplo nos formulários.
+- **Revisão Impeccable (critique),** feita em contexto único pela preferência de processo proporcional do projeto. O detector não apontou problemas (sem leitura do CSS, que é carregado por tag Django). Corrigido:
+  - Cartões de números genéricos trocados por lista de trabalho.
+  - Fonte monoespaçada usada como enfeite em e-mails.
+  - Seleção, cursor, caixas de marcação e rolagem sem cor da paleta.
+  - Pendente: fonte própria auto-hospedada, que depende de autorização para baixar o arquivo da fonte.
+- **Segunda entrega (até 31/10):** cadastro e edição de cliente com consulta de CNPJ/CEP, contatos, administradoras e configuração de destinatários na interface própria. Até lá, "Novo cliente", "Editar cadastro" e "Configurar" abrem o admin.
+
+Validação: 70 testes Django/SQLite (4 novos da interface: login e anônimo, permissões, lista/busca/ficha, fluxo completo pela interface). `backend/verificar_interface.cjs` (Playwright/Edge) em banco PostgreSQL descartável com dados fictícios: desktop, celular sem rolagem horizontal e modo escuro, com capturas inspecionadas. O banco foi removido. Nenhuma migration nova.

@@ -16,7 +16,7 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv(
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "rest_framework", "clientes",
+    "rest_framework", "clientes", "painel",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -59,6 +59,9 @@ TIME_ZONE = "America/Fortaleza"
 USE_TZ = False
 USE_I18N = True
 STATIC_URL = "static/"
+LOGIN_URL = "painel:entrar"
+LOGIN_REDIRECT_URL = "painel:inicio"
+LOGOUT_REDIRECT_URL = "painel:entrar"
 # PDFs de preparações: fora do Git e sem URL pública; servidos só pelo painel autenticado.
 ARQUIVOS_PRIVADOS_DIR = Path(os.getenv("DJANGO_ARQUIVOS_PRIVADOS", BASE_DIR / "privado"))
 # Envio de documentos: conta do domínio (cPanel). Sem host/remetente, o envio fica desabilitado no painel.

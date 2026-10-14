@@ -1,0 +1,175 @@
+{% extends "painel/base.html" %}
+{% load painel %}
+{% block titulo %}Preparação {{ prep.pk }}{% endblock %}
+{% block conteudo %}
+<nav class="crumbs" aria-label="Você está em"><a href="{% url 'painel:preparacoes' %}">Envio de documentos</a><span aria-hidden="true">›</span><span>Preparação {{ prep.pk }}</span></nav>
+<div class="page-head">
+  <div>
+    <h1>{{ prep.cliente }}</h1>
+    <p class="lead">Preparação {{ prep.pk }} · criada em {{ prep.criada_em|date:"d/m/Y H:i" }}{% if prep.criada_por %} por {{ prep.criada_por }}{% endif %}{% if prep.confirmada_em %} · confirmada em {{ prep.confirmada_em|date:"d/m/Y H:i" }}{% endif %}{% if prep.cancelada_em %} · cancelada em {{ prep.cancelada_em|date:"d/m/Y H:i" }}{% endif %}</p>
+  </div>
+  <div class="actions">{% include "painel/_status.html" with status=prep.status rotulo=prep.get_status_display %}<a class="btn btn-sm" href="{% url 'painel:cliente' prep.cliente_id %}">Ver cliente</a></div>
+</div>
+
+{% if erros %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><div>{% if erros|length == 1 %}{{ erros.0 }}{% else %}<ul>{% for e in erros %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div></div>{% endif %}
+
+{% if prep.status == 'rascunho' %}
+<div class="stack">
+  <section class="card" id="documentos" aria-labelledby="s1">
+    <div class="card-head"><div class="step-title"><span class="step-num">1</span><div><h2 id="s1">Documentos</h2><p class="muted small">Classifique cada PDF. Boleto e nota são independentes: o cliente pode receber só um deles.</p></div></div></div>
+    {% if plano.documentos %}
+    <div class="table-wrap"><table class="table responsive">
+      <thead><tr><th>Arquivo</th><th>Categoria</th><th>Referência</th><th class="num">Tamanho</th><th><span class="sr">Ações</span></th></tr></thead>
+      <tbody>{% for d in plano.documentos %}<tr data-documento>
+        <td data-label="Arquivo" class="wrap-any"><strong>{{ d.nome_original }}</strong>{% if d.origem != 'manual' %}<div class="row-sub">{{ d.get_origem_display }}</div>{% endif %}</td>
+        <td data-label="Categoria"><span class="chip chip-info">{{ d.get_categoria_display }}</span></td>
+        <td data-label="Referência">{{ d.referencia|default:"—" }}</td>
+        <td data-label="Tamanho" class="num">{{ d.tamanho|filesizeformat }}</td>
+        <td class="acoes"><a class="btn btn-sm" href="{% url 'painel:documento' prep.pk d.pk %}" target="_blank" rel="noopener" aria-label="Visualizar {{ d.nome_original }}"><svg class="i"><use href="#i-eye"/></svg>Visualizar</a>
+          {% if pode_editar %}<form class="inline-form" method="post">{% csrf_token %}<input type="hidden" name="acao" value="remover"><input type="hidden" name="documento" value="{{ d.pk }}"><button type="submit" class="btn btn-sm btn-danger" aria-label="Remover {{ d.nome_original }}"><svg class="i"><use href="#i-trash"/></svg>Remover</button></form>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="empty"><strong>Nenhum documento anexado</strong>Envie PDFs abaixo ou busque no Conta Azul.</div>{% endif %}
+    {% if pode_editar %}
+    <div class="card-body stack" style="border-top:1px solid var(--border)">
+      <form method="post" enctype="multipart/form-data" class="dropzone">{% csrf_token %}
+        <input type="hidden" name="acao" value="anexar">
+        <div class="field"><label for="arquivos">PDFs do computador</label><input type="file" id="arquivos" name="arquivos" accept="application/pdf,.pdf" multiple required><p class="hint">Até 10 MB cada. Vários arquivos recebem a mesma categoria.</p></div>
+        <div class="field"><label for="categoria">Categoria</label><select class="select" id="categoria" name="categoria" required><option value="">Escolha…</option>{% for valor, nome in categorias %}<option value="{{ valor }}">{{ nome }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="referencia">Referência <span class="opcional">(opcional)</span></label><input class="input" type="text" id="referencia" name="referencia" maxlength="120" placeholder="Ex.: vencimento 13/11, NFS-e 1234"></div>
+        <button type="submit" class="btn btn-primary">Anexar</button>
+      </form>
+      {% if contaazul %}
+      <div>
+        <h3 style="display:flex;gap:8px;align-items:center;margin-bottom:4px"><svg class="i"><use href="#i-cloud"/></svg>Buscar no Conta Azul</h3>
+        <p class="muted small">Somente consulta. Os documentos entram no rascunho para você visualizar e conferir antes de confirmar.</p>
+        <div class="subcards">
+          <form method="post" class="subcard" action="#boletos">{% csrf_token %}
+            <input type="hidden" name="acao" value="listar_boletos">
+            <span class="subcard-title">Boleto</span>
+            <div class="field"><label for="vencimento">Vencimento</label><input class="input" type="date" id="vencimento" name="vencimento" value="{{ boletos.vencimento|date:'Y-m-d' }}" required></div>
+            <div class="field"><label for="valor">Valor (R$) <span class="opcional">(opcional, para filtrar)</span></label><input class="input" type="text" id="valor" name="valor" inputmode="decimal" placeholder="1.500,00" value="{{ boletos.valor }}"></div>
+            <p class="hint">Lista as contas em aberto do dia, inclusive parcelas. Você escolhe qual anexar.</p>
+            <button type="submit" class="btn">Buscar boletos</button>
+          </form>
+          <form method="post" enctype="multipart/form-data" class="subcard">{% csrf_token %}
+            <input type="hidden" name="acao" value="zip_nfse">
+            <span class="subcard-title">Notas fiscais (ZIP)</span>
+            <div class="field"><label for="zip">ZIP de NFS-e baixado do Conta Azul</label><input type="file" id="zip" name="zip" accept=".zip,application/zip" required></div>
+            <div class="field"><label for="competencia">Competência</label><input class="input" type="month" id="competencia" name="competencia" required></div>
+            <p class="hint">Anexa só as notas cujo tomador é o CNPJ atual do cliente e que o Conta Azul confirma como emitidas.</p>
+            <button type="submit" class="btn">Importar notas</button>
+          </form>
+        </div>
+        {% if boletos %}
+        <div class="card" id="boletos" style="margin-top:16px;box-shadow:none;scroll-margin-top:16px">
+          <div class="card-head"><h3>Contas em aberto em {{ boletos.vencimento|date:"d/m/Y" }}{% if boletos.valor %} com valor R$ {{ boletos.valor }}{% endif %}</h3><span class="muted small">{{ boletos.contas|length }} encontrada(s)</span></div>
+          {% if boletos.contas %}
+          <div class="table-wrap"><table class="table responsive">
+            <thead><tr><th>Cliente no Conta Azul</th><th>Descrição</th><th class="num">Em aberto</th><th><span class="sr">Ação</span></th></tr></thead>
+            <tbody>{% for c in boletos.contas %}<tr data-conta{% if c.provavel %} class="provavel"{% endif %}>
+              <td data-label="Cliente no Conta Azul"><strong>{{ c.cliente|default:"—" }}</strong>{% if c.provavel %} <span class="chip chip-ok">Provável deste cliente</span>{% endif %}</td>
+              <td data-label="Descrição">{{ c.descricao|default:"—" }}<div class="row-sub">{{ c.status }}</div></td>
+              <td data-label="Em aberto" class="num">R$ {{ c.valor_br }}</td>
+              <td class="acoes"><form class="inline-form" method="post">{% csrf_token %}<input type="hidden" name="acao" value="boleto_parcela"><input type="hidden" name="parcela" value="{{ c.id }}"><button class="btn btn-sm btn-primary" type="submit" aria-label="Anexar boleto de {{ c.cliente }} — {{ c.descricao }}">Anexar</button></form></td>
+            </tr>{% endfor %}</tbody>
+          </table></div>
+          {% else %}<div class="empty">Nenhuma conta em aberto nesse vencimento{% if boletos.valor %} com esse valor{% endif %}.</div>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="s2">
+    <div class="card-head"><div class="step-title"><span class="step-num">2</span><div><h2 id="s2">Destinatários</h2><p class="muted small">Cada e-mail recebe só os documentos das categorias configuradas. Nada é alterado aqui.</p></div></div>
+      <a class="btn btn-sm" href="{% url 'admin:clientes_cliente_destinatarios' prep.cliente_id %}">Configurar destinatários</a></div>
+    <div class="card-body stack">
+      <div class="summary"><span><b>{{ plano.envios|length }}</b>e-mail(s) apto(s)</span><span><b>{{ plano.sem_email|length }}</b>sem e-mail</span><span><b>{{ plano.sem_anexo|length }}</b>sem anexo aplicável</span></div>
+    </div>
+    {% if plano.envios %}
+    <div class="table-wrap"><table class="table responsive">
+      <thead><tr><th>Destinatário</th><th>E-mail</th><th>Receberia</th></tr></thead>
+      <tbody>{% for g in plano.envios %}<tr data-envio>
+        <td data-label="Destinatário">{% for c in g.contatos %}<div><strong>{{ c.nome }}</strong> <span class="row-sub">{{ c.origens|join:", " }}</span></div>{% endfor %}{% if g.contatos|length > 1 %}<div class="row-sub">Mesmo e-mail: um único envio.</div>{% endif %}</td>
+        <td data-label="E-mail" class="wrap-any">{{ g.email }}</td>
+        <td data-label="Receberia"><ul class="doc-list">{% for d in g.documentos %}<li><svg class="i" aria-hidden="true"><use href="#i-file"/></svg>{{ d.nome_original }} <span class="chip chip-info">{{ d.get_categoria_display }}</span></li>{% endfor %}</ul></td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="empty"><strong>Nenhum destinatário apto</strong>Anexe documentos das categorias configuradas para este cliente.</div>{% endif %}
+    {% if plano.sem_email or plano.sem_anexo %}
+    <div class="card-body" style="border-top:1px solid var(--border)">
+      <ul class="doc-list">
+        {% for c in plano.sem_email %}<li data-impedido><span class="chip chip-error">Sem e-mail</span><strong>{{ c.nome }}</strong><span class="muted small">não recebe por e-mail ({{ c.categorias|join:", " }}); o cadastro é mantido.</span></li>{% endfor %}
+        {% for c in plano.sem_anexo %}<li><span class="chip">Sem anexo</span><strong>{{ c.nome }}</strong><span class="muted small">nenhum documento das categorias {{ c.categorias|join:", " }}.</span></li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card" id="revisao" aria-labelledby="s3">
+    <div class="card-head"><div class="step-title"><span class="step-num">3</span><div><h2 id="s3">Revisão e confirmação</h2><p class="muted small">Confirmar registra destinatários e anexos deste momento. Nada é enviado nesta etapa.</p></div></div></div>
+    <form method="post" class="card-body stack" id="form-revisao">{% csrf_token %}
+      <input type="hidden" name="impressao" value="{{ plano.impressao }}">
+      <div class="field"><label for="assunto">Assunto</label><input class="input" type="text" id="assunto" name="assunto" maxlength="200" value="{{ assunto }}" {% if not pode_editar %}readonly{% endif %}></div>
+      <div class="field"><label for="mensagem">Mensagem</label><textarea class="textarea" id="mensagem" name="mensagem" {% if not pode_editar %}readonly{% endif %}>{{ mensagem }}</textarea><p class="hint">O mesmo texto vai para todos; os anexos variam por destinatário.</p></div>
+      {% if plano.conflitos %}
+      <div class="alert alert-warn" role="alert"><svg class="i"><use href="#i-alert"/></svg><div style="flex:1">
+        <strong>Possível reenvio.</strong> Estes documentos já constam em preparação confirmada para o mesmo e-mail:
+        <ul>{% for c in plano.conflitos %}<li>{{ c.documento.nome_original }} → {{ c.email }} (<a href="{% url 'painel:preparacao' c.preparacao.pk %}">preparação {{ c.preparacao.pk }}</a>, {{ c.preparacao.confirmada_em|date:"d/m/Y H:i" }})</li>{% endfor %}</ul>
+        <p style="margin:8px 0">Remova-os ou, se o reenvio for intencional, informe o motivo.</p>
+        <div class="field"><label for="motivo_reenvio">Motivo do reenvio</label><input class="input" type="text" id="motivo_reenvio" name="motivo_reenvio" maxlength="200" value="{{ motivo_reenvio }}"></div>
+      </div></div>
+      {% endif %}
+      {% if pode_confirmar %}<label class="check"><input type="checkbox" name="conferido" value="sim" id="conferido"> Conferi os destinatários aptos e seus anexos.</label>{% endif %}
+      <div class="foot-actions">
+        {% if pode_editar %}<button type="submit" name="acao" value="salvar_texto" class="btn">Salvar texto</button>{% endif %}
+        {% if pode_confirmar %}<button type="submit" name="acao" value="confirmar" class="btn btn-confirm" id="confirmar" {% if not plano.envios %}disabled{% endif %}><svg class="i"><use href="#i-check"/></svg>Confirmar preparação</button>{% endif %}
+      </div>
+    </form>
+    {% if pode_editar %}<form method="post" class="card-body" style="border-top:1px solid var(--border);padding-top:16px" data-confirmar-acao="Cancelar esta preparação? Registros e arquivos serão preservados.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="btn btn-sm btn-danger">Cancelar preparação</button></form>{% endif %}
+  </section>
+</div>
+
+{% else %}
+<div class="stack">
+  {% if prep.status == 'confirmada' %}
+  <section class="card" id="envio" aria-labelledby="t-envio">
+    <div class="card-head"><div><h2 id="t-envio">Envio por e-mail</h2><p class="muted small">{% if por_status.aceito %}{{ por_status.aceito }} de {{ confirmados|length }} e-mail(s) aceito(s) pelo servidor. Aceitação não comprova entrega.{% else %}Nenhuma mensagem foi enviada ainda.{% endif %}</p></div>
+    {% if pode_enviar and envio_configurado %}
+      <form method="post" class="inline-form" data-confirmar-acao="Enviar agora os e-mails pendentes desta preparação?">{% csrf_token %}<input type="hidden" name="acao" value="enviar">
+        {% if por_status.enviando %}<label class="check" style="margin-bottom:8px"><input type="checkbox" name="incluir_indeterminados" value="sim"> Incluir {{ por_status.enviando }} envio(s) indeterminado(s): confirmei que não foram recebidos.</label>{% endif %}
+        <button type="submit" class="btn btn-confirm"><svg class="i"><use href="#i-send"/></svg>{% if por_status.falha and not por_status.pendente %}Tentar novamente ({{ por_status.falha }}){% else %}Enviar e-mails ({{ por_status.pendente|add:por_status.falha }}){% endif %}</button>
+      </form>
+    {% endif %}</div>
+    {% if pode_enviar and not envio_configurado %}<div class="card-body"><div class="alert alert-warn" style="margin:0"><svg class="i"><use href="#i-alert"/></svg><span>Envio por e-mail ainda não configurado no servidor (SMTP). A preparação fica registrada e poderá ser enviada depois.</span></div></div>{% endif %}
+    <div class="table-wrap"><table class="table responsive">
+      <thead><tr><th>Destinatário</th><th>E-mail</th><th>Anexos</th><th>Situação</th></tr></thead>
+      <tbody>{% for dest in confirmados %}<tr data-envio>
+        <td data-label="Destinatário"><strong>{{ dest.nomes }}</strong></td>
+        <td data-label="E-mail" class="wrap-any">{{ dest.email }}</td>
+        <td data-label="Anexos"><ul class="doc-list">{% for i in dest.itens.all %}<li><a href="{% url 'painel:documento' prep.pk i.documento.pk %}" target="_blank" rel="noopener">{{ i.documento.nome_original }}</a> <span class="chip chip-info">{{ i.documento.get_categoria_display }}</span>{% if i.reenvio %} <span class="chip chip-warn">Reenvio</span>{% endif %}</li>{% endfor %}</ul></td>
+        <td data-label="Situação" data-status-envio="{{ dest.status_envio }}">{% include "painel/_status.html" with status=dest.status_envio rotulo=dest.get_status_envio_display %}
+          {% if dest.aceito_em %}<div class="row-sub">{{ dest.aceito_em|date:"d/m/Y H:i" }}</div>{% endif %}
+          {% if dest.status_envio == 'falha' %}<div class="row-sub" style="color:var(--error-text)">{{ dest.ultimo_erro }}</div>{% endif %}
+          {% if dest.status_envio == 'enviando' %}<div class="row-sub">Interrompido sem resposta do servidor. Verifique com o destinatário antes de repetir.</div>{% endif %}
+          {% if dest.tentativas > 1 %}<div class="row-sub">{{ dest.tentativas }} tentativas</div>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  {% endif %}
+
+  <section class="card card-pad" aria-labelledby="t-msg">
+    <h2 id="t-msg" style="margin-bottom:12px">{% if prep.status == 'confirmada' %}Mensagem registrada{% else %}Preparação cancelada{% endif %}</h2>
+    <p><strong>Assunto:</strong> {{ prep.assunto }}</p>
+    <pre class="message-box">{{ prep.mensagem }}</pre>
+    {% if prep.motivo_reenvio %}<p style="margin-top:12px"><strong>Motivo do reenvio:</strong> {{ prep.motivo_reenvio }}</p>{% endif %}
+    <hr class="divider">
+    <h3 style="margin-bottom:8px">Documentos anexados</h3>
+    <ul class="doc-list">{% for d in documentos %}<li><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><a href="{% url 'painel:documento' prep.pk d.pk %}" target="_blank" rel="noopener">{{ d.nome_original }}</a> <span class="chip chip-info">{{ d.get_categoria_display }}</span>{% if d.removido_em %} <span class="muted small">removido em {{ d.removido_em|date:"d/m/Y H:i" }}</span>{% endif %}</li>{% empty %}<li class="muted">Nenhum documento.</li>{% endfor %}</ul>
+  </section>
+</div>
+{% endif %}
+{% endblock %}

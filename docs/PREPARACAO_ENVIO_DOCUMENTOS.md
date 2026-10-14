@@ -2,6 +2,8 @@
 
 Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado diretamente pela API pública. Integração ao painel, anexos e envio ainda não implementados. Evidências anteriores estão preservadas abaixo como contexto datado.
 
+**Teste real aprovado pelo usuário em 14/10/2026:** boleto de parcela anexado pelo painel e cadastro com consulta de CNPJ funcionando. A tela de preparação também existe na interface própria (`/preparacoes/<id>/`), com a mesma lógica (`clientes/preparacao_fluxo.py`).
+
 ## Correções após o primeiro teste real — 14/10/2026
 
 O usuário não conseguiu testar porque: (1) os clientes com CNPJ real não tinham boleto único a vencer, e o parcelamento do Antonio Joaquim não foi aceito; (2) a consulta de CNPJ falhou duas vezes ao cadastrar outro cliente.
