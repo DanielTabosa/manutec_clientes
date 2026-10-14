@@ -1,0 +1,33 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Tipos de contrato{% endblock %}
+{% block conteudo %}
+<nav class="crumbs" aria-label="Você está em"><a href="{% url 'painel:contratos' %}">Contratos</a><span aria-hidden="true">›</span><span>Tipos de contrato</span></nav>
+<div class="page-head"><div><h1>Tipos de contrato</h1><p class="lead">Lista usada na seleção do tipo ao cadastrar um contrato.</p></div></div>
+<div class="grid grid-3">
+  <section class="card">
+    {% if lista %}
+    <div class="table-wrap"><table class="table responsive">
+      <thead><tr><th>Tipo</th><th class="num">Ativos</th><th class="num">Total</th><th>Disponível</th><th><span class="sr">Ações</span></th></tr></thead>
+      <tbody>{% for t in lista %}<tr data-tipo>
+        <td data-label="Tipo"><strong>{{ t.nome }}</strong>{% if t.descricao %}<div class="row-sub">{{ t.descricao }}</div>{% endif %}</td>
+        <td data-label="Ativos" class="num">{{ t.ativos }}</td>
+        <td data-label="Total" class="num">{{ t.total }}</td>
+        <td data-label="Disponível">{% if t.ativo %}<span class="chip chip-ok">Sim</span>{% else %}<span class="chip">Fora da lista</span>{% endif %}</td>
+        <td class="acoes">{% if perms.clientes.change_tipocontrato %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:tipo_contrato_editar' t.pk %}">Editar</a>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="empty"><strong>Nenhum tipo cadastrado</strong>Cadastre os tipos de contrato da Manutec ao lado.</div>{% endif %}
+  </section>
+  {% if form %}
+  <section class="card" aria-labelledby="t-novo">
+    <div class="card-head"><h2 id="t-novo">Novo tipo</h2></div>
+    <form method="post" class="card-body" novalidate>{% csrf_token %}
+      {% for field in form.visible_fields %}<div class="field{% if field.errors %} field-erro{% endif %}" style="margin-bottom:14px">
+        <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="opcional">(opcional)</span>{% endif %}</label>{{ field }}
+        {% for e in field.errors %}<p class="field-msg" role="alert">{{ e }}</p>{% endfor %}</div>{% endfor %}
+      <button type="submit" class="btn btn-primary"><svg class="i"><use href="#i-plus"/></svg>Cadastrar tipo</button>
+    </form>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

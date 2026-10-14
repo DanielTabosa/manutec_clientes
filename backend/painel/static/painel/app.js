@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (quadro.hasAttribute('data-pendente')) carregar(false);
   }
 
+  // Filtros em lista suspensa aplicam ao escolher
+  document.querySelectorAll('[data-enviar-ao-mudar]').forEach(s => s.addEventListener('change', () => s.form.requestSubmit()));
+
   // Busca global: Ctrl+K / Cmd+K ou "/" fora de campos
   const busca = document.getElementById('busca-global');
   document.addEventListener('keydown', e => {

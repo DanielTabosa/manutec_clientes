@@ -31,6 +31,7 @@ O schema contém oito tabelas de domínio; sua existência na instalação foi r
 | `destinatarios_faturamento` | SQL legado preservado; não usado pelo módulo novo |
 | Configuração/revisão/item de destinatários | Três tabelas gerenciadas na migration 0007; painel/API implementados e migration aplicada em 28/09/2026 |
 | Preparação de envio (preparação/documento/destinatário/item) | Quatro tabelas na migration 0008, painel implementado em 14/10/2026; 0008 aplicada ao banco instalado em 14/10/2026, após backup verificado |
+| Tipos de contrato e contratos (`clientes_tipocontrato`, `clientes_contrato`) | Migration 0009, aplicada ao banco instalado em 14/10/2026; painel, admin e importação CSV |
 
 Consultas BrasilAPI/ViaCEP implementadas nos formulários pertinentes. Parcial: identidade de contatos, telefone/e-mail únicos por registro, função livre, histórico editável de contatos e consulta aos anteriores. Pendente: prioridade/alternativo estruturado, apresentação compacta de dois anteriores, frontend próprio e integrações operacionais.
 
@@ -198,4 +199,23 @@ Pedido do usuário: o início deve focar em clientes, administradoras e contrato
 - **Retaguarda (Django admin)** com o design do sistema: logotipo, menu lateral em azul profundo com item ativo destacado, cartões arredondados, tabelas, campos e botões iguais aos da interface, modo escuro e link "Voltar para o sistema". Só CSS e o `base_site.html`.
 
 Validação: 87 testes Django (7 novos: importação de clientes com pendências e administradora, leitura cp1252 e reconhecimento de colunas, reassociação, contatos e contatos de administradora, permissões, modelo e descarte, painel e contratos com simulação e 401), 56 Conta Azul, 14 verificações PostgreSQL descartáveis e detector sem apontamentos. `backend/verificar_importacao.cjs` (Playwright/Edge, banco descartável): início, importação ponta a ponta (2 novos, 1 existente, 1 erro), filtro de pendência, retaguarda, modo escuro e celular. O banco foi removido.
+
+### Reset dos dados de teste e contratos na base — 14/10/2026
+
+Pedido do usuário: deixar o sistema sem dados de teste antes dos cadastros reais; "Ver todos" no topo de cada quadro do início; contratos cadastrados no sistema em vez de puxados do Conta Azul, porque um cliente pode ter dois contratos de tipos diferentes.
+
+- **Reset do banco instalado** (escolha do usuário: dados apagados, usuários mantidos):
+  - Backup antes, em `.venv/backups/pre_reset_20261014/pre_reset.dump`, restaurado em banco temporário e comparado: 25 tabelas, 238 registros.
+  - Apagados clientes, CNPJs, contatos, administradoras, vínculos, responsabilidades, destinatários, preparações, registros do admin e os PDFs de teste (`backend/privado/preparacoes`).
+  - Mantidos usuários (Daniel_Tabosa e Anibal, ambos superusuários), grupo, permissões e controle de migrations.
+- **Contratos** (decisão do usuário: cadastrar aqui; Conta Azul só como conferência opcional):
+  - `TipoContrato`: lista editável na tela (`/contratos/tipos/`), com nome único sem diferenciar caixa. Tipo em uso não é apagado; fica "fora da lista" para contratos novos.
+  - `Contrato`: cliente, tipo, situação (ativo, suspenso ou inativo), início, fim opcional, número ou referência e observações. Um cliente pode ter vários contratos. Contrato não é apagado: encerra mudando a situação. O banco garante a situação válida e o fim não anterior ao início, e protege cliente e tipo de exclusão.
+  - Ficha do cliente com o quadro Contratos logo depois do Cadastro (novo e editar). Menu Contratos com lista filtrada por situação, tipo e busca.
+  - Conferência com o Conta Azul sob demanda na tela de contratos (`/contratos/resumo/`, nada é gravado), agrupada por cliente para não duplicar: clientes da base com contrato ativo lá e nenhum ativo aqui, e clientes sem cadastro. O início não consulta mais o Conta Azul.
+  - Importação CSV do tipo "Contratos": condomínio pelo CNPJ atual ou nome exato, tipo precisa existir, situação vazia vira ativo, início vazio vira hoje. Mesmo cliente, tipo e início é tratado como já existente.
+  - Admin: tipos e contratos registrados na retaguarda.
+- **Início:** quadro Contratos ativos com dados da base (ativos, clientes com contrato, suspensos e ativos por tipo). Todos os quadros têm "Ver todos" no topo.
+
+Validação: 150 testes Django/SQLite (7 novos em `painel/test_contratos.py` e o quadro do início atualizado), 15 verificações PostgreSQL descartáveis (nova: restrições e proteção de contratos) e `backend/verificar_contratos.cjs` (Playwright/Edge, banco descartável): início, tipo novo, contrato na ficha, lista filtrada e celular sem rolagem horizontal. Corrigido na verificação visual: tipo criado na tela nascia indisponível. Banco descartável removido; 0009 aplicada ao banco instalado (só cria as duas tabelas).
 

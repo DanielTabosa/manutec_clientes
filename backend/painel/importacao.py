@@ -14,6 +14,7 @@ from django.core.validators import validate_email
 from django.db import transaction
 
 from clientes.cnpj import normalizar_cnpj
+from clientes.contratos_models import SITUACOES, Contrato, TipoContrato
 from clientes.models import (Administradora, Cliente, ClienteAdministradora, Contato, ContatoAdministradora,
                              HistoricoCNPJ)
 
@@ -65,6 +66,15 @@ TIPOS = {
         ('email', 'E-mail', False, ['email', 'e mail']),
         ('telefone', 'Telefone', False, ['telefone', 'fone', 'celular', 'tel']),
     ]),
+    'contratos': dict(nome='Contratos dos condomínios', permissao='clientes.add_contrato', campos=[
+        ('cliente', 'Condomínio (CNPJ ou nome)', True, ['condominio', 'cliente', 'cnpj', 'cnpj do condominio', 'razao social', 'cnpj cliente']),
+        ('tipo', 'Tipo de contrato', True, ['tipo', 'tipo de contrato', 'tipo contrato', 'modalidade', 'servico']),
+        ('situacao', 'Situação', False, ['situacao', 'status', 'estado do contrato']),
+        ('data_inicio', 'Início', False, ['inicio', 'data inicio', 'data de inicio', 'desde', 'vigencia inicio']),
+        ('data_fim', 'Fim', False, ['fim', 'data fim', 'data de fim', 'termino', 'vigencia fim']),
+        ('identificador', 'Número ou referência', False, ['numero', 'numero do contrato', 'referencia', 'contrato', 'codigo']),
+        ('observacoes', 'Observações', False, ['observacoes', 'observacao', 'obs']),
+    ]),
 }
 
 
@@ -75,6 +85,7 @@ def modelo_csv(tipo):
         'contatos': ['00.000.000/0001-00', 'Maria Exemplo', 'Síndica', 'maria@exemplo.com.br', '(85) 99999-0000', '2024-01-01'],
         'administradoras': ['Administradora Exemplo Ltda', '00.000.000/0001-00', 'Administradora Exemplo', '(85) 3333-0000', 'contato@exemplo.com.br'],
         'contatos_administradora': ['Administradora Exemplo Ltda', 'João Exemplo', 'joao@exemplo.com.br', '(85) 99999-1111'],
+        'contratos': ['00.000.000/0001-00', 'Manutenção preventiva', 'Ativo', '2024-01-01', '', '123', ''],
     }[tipo]
     saida = io.StringIO()
     escritor = csv.writer(saida, delimiter=';')
@@ -290,6 +301,40 @@ class _Analise:
             return 'existente', chave
         return 'novo', chave
 
+    @staticmethod
+    def contratos(linha, mapa, dados, notas):
+        v = lambda c: _valor(linha, mapa, c)  # noqa: E731
+        cliente = _localizar_cliente(v('cliente'))
+        if not cliente:
+            raise ValidationError(f'Condomínio não encontrado: "{v("cliente")}". Use o CNPJ atual ou o nome exato.')
+        tipo = TipoContrato.objects.filter(nome__iexact=' '.join(v('tipo').split())).first()
+        if not tipo:
+            raise ValidationError(f'Tipo de contrato não cadastrado: "{v("tipo")}". Cadastre-o em Contratos › Tipos de contrato.')
+        if not tipo.ativo:
+            raise ValidationError(f'Tipo "{tipo.nome}" está fora da lista de novos contratos.')
+        situacoes = {_chave(n): c for c, n in SITUACOES}
+        situacao = situacoes.get(_chave(v('situacao')), 'ativo' if not v('situacao') else None)
+        if situacao is None:
+            raise ValidationError(f'Situação inválida: "{v("situacao")}". Use ativo, suspenso ou inativo.')
+        if not v('situacao'):
+            notas.append('situação não informada: ativo')
+        inicio = _data(v('data_inicio'))
+        if not inicio:
+            inicio = date.today()
+            notas.append('início não informado ou inválido: hoje')
+        fim = _data(v('data_fim')) if v('data_fim') else None
+        if v('data_fim') and not fim:
+            notas.append(f'fim inválido ignorado ({v("data_fim")})')
+        if fim and fim < inicio:
+            raise ValidationError('O fim é anterior ao início.')
+        dados.update(cliente=cliente.pk, nome=f'{cliente.razao_social} — {tipo.nome}', tipo=tipo.pk, situacao=situacao,
+                     data_inicio=inicio, data_fim=fim, identificador=v('identificador')[:60],
+                     observacoes=v('observacoes')[:5000])
+        chave = (cliente.pk, tipo.pk, inicio)
+        if Contrato.objects.filter(cliente=cliente, tipo=tipo, data_inicio=inicio).exists():
+            return 'existente', chave
+        return 'novo', chave
+
 
 def importar(tipo, analise):
     """Grava as linhas 'novo' (reanalisadas no momento da gravação). Retorna contagens e falhas por linha."""
@@ -322,6 +367,11 @@ def importar(tipo, analise):
                 elif tipo == 'contatos_administradora':
                     d.pop('administradora_nome', None)
                     ContatoAdministradora(administradora_id=d.pop('administradora'), **d).save()
+                elif tipo == 'contratos':
+                    d.pop('nome', None)
+                    obj = Contrato(cliente_id=d.pop('cliente'), tipo_id=d.pop('tipo'), **d)
+                    obj.full_clean()
+                    obj.save()
             criados += 1
         except ValidationError as exc:
             falhas.append((item['linha'], item['titulo'], '; '.join(exc.messages)))

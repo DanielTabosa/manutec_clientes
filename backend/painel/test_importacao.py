@@ -112,30 +112,35 @@ class InicioPainelTests(BasePreparacao):
 
     def test_painel_foca_em_clientes_administradoras_e_contratos(self):
         pagina = self.client.get(reverse('painel:inicio')).content.decode()
-        for trecho in ('Clientes cadastrados', 'Sem CNPJ atual', 'Administradoras', 'Envio de documentos'):
+        for trecho in ('Clientes cadastrados', 'Sem CNPJ atual', 'Administradoras', 'Contratos ativos', 'Envio de documentos'):
             self.assertIn(trecho, pagina)
-        self.assertNotIn('Contratos ativos', pagina)  # Conta Azul não configurado nos testes
+        # "Ver todos" no topo de cada quadro
+        for destino in ('painel:clientes', 'painel:administradoras', 'painel:contratos', 'painel:preparacoes'):
+            self.assertIn(f'href="{reverse(destino)}', pagina)
+        self.assertLess(pagina.index('Contratos ativos'), pagina.index('secao-titulo'))
         self.assertLess(pagina.index('Clientes cadastrados'), pagina.index('secao-titulo'))
         lista = self.client.get(reverse('painel:clientes'), {'pendencia': 'cnpj'}).content.decode()
         self.assertIn('Condomínio QA', lista)
 
     @override_settings(CONTAAZUL_AMBIENTE='producao')
-    def test_contratos_ativos_cruzados_com_a_base(self):
+    def test_conferencia_conta_azul_agrupa_por_cliente(self):
         HistoricoCNPJ.objects.create(cliente=self.c, cnpj='11222333000181', data_inicio=date(2020, 1, 1))
         itens = {'itens': [
             {'status': 'ATIVO', 'numero': 1, 'cliente': {'id': 'p1', 'nome': 'Outro Nome Qualquer'}},
+            {'status': 'ATIVO', 'numero': 4, 'cliente': {'id': 'p1', 'nome': 'Outro Nome Qualquer'}},
             {'status': 'ATIVO', 'numero': 2, 'cliente': {'nome': 'Edifício Sem Cadastro'}},
+            {'status': 'ATIVO', 'numero': 5, 'cliente': {'nome': 'Edifício Sem Cadastro'}},
             {'status': 'INATIVO', 'numero': 3, 'cliente': {'nome': 'Antigo'}},
         ]}
         pessoas = {'items': [{'id': 'p1', 'documento': '11.222.333/0001-81'}, {'id': 'p2', 'documento': ''}]}
         with patch('contaazul_boleto._cliente_http', return_value=lambda rota, *a, **k: pessoas if 'pessoas' in rota else itens):
-            self.assertContains(self.client.get(reverse('painel:inicio')), 'data-pendente')
+            self.assertNotContains(self.client.get(reverse('painel:inicio')), 'data-pendente')  # início não consulta o Conta Azul
+            self.assertContains(self.client.get(reverse('painel:contratos')), 'Conferência com o Conta Azul')
             pagina = self.client.get(reverse('painel:contratos_resumo')).content.decode()
-            self.assertNotIn('data-pendente', self.client.get(reverse('painel:inicio')).content.decode())  # cache
-        self.assertIn('Contratos ativos', pagina)
-        self.assertIn('Edifício Sem Cadastro', pagina)
+        self.assertIn('4 contrato(s) ativo(s) lá, de 2 cliente(s)', pagina)
+        self.assertEqual(pagina.count('Edifício Sem Cadastro'), 1)  # dois contratos, um cliente
+        self.assertIn('Condomínio QA', pagina)  # na base, sem contrato ativo aqui
         self.assertNotIn('Antigo', pagina)
-        self.assertIn('1 com cadastro aqui', pagina)
         cache.clear()
         from urllib.error import HTTPError
         with patch('contaazul_boleto._cliente_http', side_effect=HTTPError('https://x', 401, 'n', None, None)):

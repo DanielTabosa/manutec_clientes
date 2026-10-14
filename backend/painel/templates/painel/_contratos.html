@@ -1,10 +1,18 @@
 {% if contratos %}
-<div class="card-head"><div><h2 id="t-ctr">Contratos ativos</h2><p class="muted small">Conta Azul{% if contratos.ok %} · {{ contratos.com }} com cadastro aqui{% endif %}</p></div>
-  <div class="actions">{% if contratos.ok %}<div class="numero-grande pequeno"><span>{{ contratos.total }}</span></div>{% endif %}<button type="button" class="btn btn-sm btn-ghost" data-atualizar-contratos aria-label="Atualizar contratos"><svg class="i"><use href="#i-refresh"/></svg></button></div></div>
+<div class="card-head"><div><h2 id="t-ctr">Conferência com o Conta Azul</h2><p class="muted small">{% if contratos.ok %}{{ contratos.total }} contrato(s) ativo(s) lá, de {{ contratos.clientes }} cliente(s) · nada é gravado{% else %}Conferência opcional{% endif %}</p></div>
+  <button type="button" class="btn btn-sm" data-atualizar-contratos><svg class="i"><use href="#i-refresh"/></svg>Conferir de novo</button></div>
 {% if not contratos.ok %}<div class="card-body"><div class="alert alert-warn" style="margin:0"><svg class="i"><use href="#i-alert"/></svg><span>{{ contratos.erro }}</span></div></div>
-{% elif contratos.sem %}
-<a class="faixa-aviso" href="#t-ctr"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>{{ contratos.total_sem }} contrato(s) de clientes sem cadastro aqui</a>
-<ul class="worklist">{% for c in contratos.sem %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ c.cliente|default:"Cliente sem nome" }}</strong><span class="row-sub">Contrato {{ c.numero|default:"—" }}{% if c.vencimento %} · próximo vencimento {{ c.vencimento }}{% endif %}</span></span>
-  {% if perms.clientes.add_cliente %}<a class="btn btn-sm" href="{% url 'painel:cliente_novo' %}?razao_social={{ c.cliente|urlencode }}{% if c.documento %}&cnpj={{ c.documento }}{% endif %}"><svg class="i"><use href="#i-plus"/></svg>Cadastrar</a>{% endif %}</div></li>{% endfor %}</ul>
-{% else %}<div class="empty"><strong>Todos os contratos têm cadastro</strong>Cada contrato ativo corresponde a um cliente da base.</div>{% endif %}
+{% else %}
+{% if contratos.sem_contrato %}
+<p class="faixa-aviso"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>{{ contratos.total_sem_contrato }} cliente(s) da base com contrato ativo no Conta Azul e nenhum contrato ativo aqui</p>
+<ul class="worklist">{% for c in contratos.sem_contrato %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ c.nome }}</strong><span class="row-sub">{{ c.qtd }} contrato(s) no Conta Azul</span></span>
+  {% if perms.clientes.add_contrato %}<a class="btn btn-sm" href="{% url 'painel:contrato_novo' c.cliente_id %}"><svg class="i"><use href="#i-plus"/></svg>Cadastrar contrato</a>{% endif %}</div></li>{% endfor %}</ul>
+{% endif %}
+{% if contratos.sem %}
+<p class="faixa-aviso"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>{{ contratos.total_sem }} cliente(s) com contrato no Conta Azul e sem cadastro na base</p>
+<ul class="worklist">{% for c in contratos.sem %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ c.cliente|default:"Cliente sem nome" }}</strong><span class="row-sub">{{ c.qtd }} contrato(s) no Conta Azul{% if c.documento %} · <span class="num-data">{{ c.documento }}</span>{% endif %}</span></span>
+  {% if perms.clientes.add_cliente %}<a class="btn btn-sm" href="{% url 'painel:cliente_novo' %}?razao_social={{ c.cliente|urlencode }}{% if c.documento %}&cnpj={{ c.documento }}{% endif %}"><svg class="i"><use href="#i-plus"/></svg>Cadastrar cliente</a>{% endif %}</div></li>{% endfor %}</ul>
+{% endif %}
+{% if not contratos.sem and not contratos.sem_contrato %}<div class="empty"><strong>Tudo confere</strong>Cada cliente com contrato ativo no Conta Azul tem cadastro e contrato ativo aqui.</div>{% endif %}
+{% endif %}
 {% endif %}

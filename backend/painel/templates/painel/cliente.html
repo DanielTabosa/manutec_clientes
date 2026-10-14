@@ -37,6 +37,25 @@
       </div>
     </section>
 
+    {% if contratos is not None %}
+    <section class="card" aria-labelledby="t-contratos">
+      <div class="card-head"><div><h2 id="t-contratos">Contratos <span class="count">{{ contratos|length }}</span></h2><p class="muted small">Um condomínio pode ter vários contratos, de tipos diferentes.</p></div>{% if perms.clientes.add_contrato %}<a class="btn btn-sm btn-primary" href="{% url 'painel:contrato_novo' cliente.pk %}"><svg class="i"><use href="#i-plus"/></svg>Novo contrato</a>{% endif %}</div>
+      {% if contratos %}
+      <div class="table-wrap"><table class="table responsive">
+        <thead><tr><th>Tipo</th><th>Situação</th><th>Início</th><th>Fim</th><th>Referência</th><th><span class="sr">Ações</span></th></tr></thead>
+        <tbody>{% for c in contratos %}<tr data-contrato>
+          <td data-label="Tipo"><strong>{{ c.tipo }}</strong>{% if c.observacoes %}<div class="row-sub">{{ c.observacoes|truncatechars:80 }}</div>{% endif %}</td>
+          <td data-label="Situação">{% include "painel/_situacao_contrato.html" with situacao=c.situacao rotulo=c.get_situacao_display %}</td>
+          <td data-label="Início" class="num-data">{{ c.data_inicio|date:"d/m/Y" }}</td>
+          <td data-label="Fim" class="num-data">{{ c.data_fim|date:"d/m/Y"|default:"—" }}</td>
+          <td data-label="Referência">{{ c.identificador|default:"—" }}</td>
+          <td class="acoes">{% if perms.clientes.change_contrato %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:contrato_editar' c.pk %}" aria-label="Editar contrato {{ c.tipo }}">Editar</a>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<div class="empty"><strong>Nenhum contrato</strong>Cadastre os contratos deste condomínio.</div>{% endif %}
+    </section>
+    {% endif %}
+
     <section class="card" aria-labelledby="t-contatos">
       <div class="card-head"><div><h2 id="t-contatos">Contatos do condomínio <span class="count">{{ contatos|length }}</span></h2><p class="muted small">Pessoas ligadas diretamente ao condomínio: síndico, conselho, zelador.</p></div>{% if perms.clientes.add_contato %}<a class="btn btn-sm btn-primary" href="{% url 'painel:contato_novo' cliente.pk %}"><svg class="i"><use href="#i-plus"/></svg>Novo contato</a>{% endif %}</div>
       {% if contatos %}

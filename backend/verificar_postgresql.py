@@ -356,18 +356,39 @@ def worker():
                 self.assertEqual(len(mail.outbox),1)
                 self.assertEqual(item.destinatarios.get().status_envio,'aceito')
 
+    def test_contratos_constraints_e_protecao(self):
+        from django.db.models.deletion import ProtectedError
+        from clientes.contratos_models import Contrato, TipoContrato
+        t = TipoContrato.objects.create(nome=f'Manutenção QA {self.c.pk}')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            TipoContrato.objects.create(nome=t.nome.upper())  # nome único sem diferenciar caixa
+        Contrato.objects.create(cliente=self.c, tipo=t, data_inicio=date(2024, 1, 1))
+        Contrato.objects.create(cliente=self.c, tipo=t, situacao='suspenso', data_inicio=date(2025, 1, 1))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Contrato.objects.create(cliente=self.c, tipo=t, data_inicio=date(2024, 1, 2), data_fim=date(2024, 1, 1))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Contrato.objects.create(cliente=self.c, tipo=t, situacao='cancelado', data_inicio=date(2024, 1, 1))
+        with self.assertRaises(ProtectedError), transaction.atomic():
+            t.delete()
+        self.assertEqual(self.c.contratos.count(), 2)
+
+    Validacao.test_contratos_constraints_e_protecao = test_contratos_constraints_e_protecao
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Validacao))
     if not result.wasSuccessful(): sys.exit(1)
     # Usuário fictício apenas no banco descartável, para inspeção visual local.
     User.objects.create_superuser(username='visual_qa',password='teste-visual-isolado',email='qa@example.invalid')
     a = Administradora.objects.create(razao_social='Administradora Visual Alfa')
     Administradora.objects.create(razao_social='Administradora Visual Beta')
+    from clientes.contratos_models import Contrato, TipoContrato
+    tipos = [TipoContrato.objects.create(nome=n) for n in ('Manutenção Visual', 'Locação Visual')]
     for i, nome in enumerate(['Condomínio Visual Sol', 'Condomínio Visual Mar'], 1):
         c = cadastrar_cliente(cnpj=f'99000000000{i}00', razao_social=nome,
             logradouro='Rua QA', numero='1', bairro='Centro', cidade='Fortaleza',
             estado='CE', cep='60000000', data_inicio=date(2020, 1, 1))
         alterar_administradora(c.pk, acao='vincular', administradora=a, data=date(2020, 1, 1))
-    print('PostgreSQL: 14 verificações aprovadas; schema e migrations instalados apenas no banco descartável.',flush=True)
+        Contrato.objects.create(cliente=c, tipo=tipos[0], data_inicio=date(2024, 1, 1), identificador=f'V{i}')
+    Contrato.objects.create(cliente=c, tipo=tipos[1], situacao='suspenso', data_inicio=date(2024, 6, 1))
+    print('PostgreSQL: 15 verificações aprovadas; schema e migrations instalados apenas no banco descartável.',flush=True)
 
 
 if __name__=='__main__': main()

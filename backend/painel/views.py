@@ -34,23 +34,25 @@ def _clientes_anotados():
 @login_required
 def inicio(request):
     from django.db.models import Count, Q as Qd
-    from clientes import contratos as contratos_ca
+    from clientes.contratos_models import Contrato
     from clientes.models import Administradora, ContatoAdministradora
     from . import completude
     pode = request.user.has_perm
     ctx = dict(secao='inicio', ve_preparacoes=pode('clientes.view_preparacaoenvio'), ve_clientes=pode('clientes.view_cliente'),
-               ve_administradoras=pode('clientes.view_administradora'))
+               ve_administradoras=pode('clientes.view_administradora'), ve_contratos=pode('clientes.view_contrato'))
+    if ctx['ve_contratos']:
+        situacoes = dict(Contrato.objects.values_list('situacao').annotate(n=Count('id')))
+        ativos = Contrato.objects.filter(situacao='ativo')
+        ctx['ctr'] = dict(
+            ativos=situacoes.get('ativo', 0), suspensos=situacoes.get('suspenso', 0), inativos=situacoes.get('inativo', 0),
+            clientes=ativos.values('cliente_id').distinct().count(),
+            por_tipo=ativos.values('tipo_id', 'tipo__nome').annotate(n=Count('id')).order_by('-n', 'tipo__nome')[:6],
+        )
     if ctx['ve_clientes']:
         ctx['base'] = completude.resumo(Cliente.objects.all())
         ctx['clientes_recentes'] = completude.anotar(_clientes_anotados()).order_by('-criado_em')[:5]
         for c in ctx['clientes_recentes']:
             c.pontos = completude.pontos(c)
-        if servico.contaazul_config():
-            from django.core.cache import cache
-            if cache.get(contratos_ca.CHAVE_CACHE) is not None:
-                ctx['contratos'] = _resumo_contratos(False)
-            else:
-                ctx['contratos_async'] = True
     if ctx['ve_administradoras']:
         adms = Administradora.objects.annotate(condominios=Count('vinculos', filter=Qd(vinculos__data_fim__isnull=True), distinct=True))
         ctx['adm'] = dict(
@@ -132,6 +134,8 @@ def cliente(request, pk):
         .filter(cliente=obj, data_fim__isnull=False).order_by('-data_fim'),
         responsabilidades=Responsabilidade.objects.select_related('contato_administradora')
         .filter(cliente=obj, data_fim__isnull=True).order_by('funcao'),
+        contratos=obj.contratos.select_related('tipo').order_by('situacao', '-data_inicio')
+        if request.user.has_perm('clientes.view_contrato') else None,
         cnpjs_anteriores=HistoricoCNPJ.objects.filter(cliente=obj, data_fim__isnull=False).order_by('-data_fim'),
         preparacoes=[(p, fluxo.situacao_envio(p)) for p in obj.preparacoes_envio.select_related('criada_por')[:10]]
         if request.user.has_perm('clientes.view_preparacaoenvio') else None,
@@ -209,15 +213,30 @@ def busca(request):
 
 
 def _resumo_contratos(forcar):
+    """Conferência opcional: agrupa os contratos do Conta Azul por cliente (um cliente pode ter vários)."""
     from clientes import contratos as contratos_ca
+    from clientes.contratos_models import Contrato
     dados = contratos_ca.carregar(forcar=forcar)
     com, sem = contratos_ca.cruzar(dados['itens']) if dados['ok'] else ([], [])
-    return dict(dados, total=len(dados['itens']), com=len(com), sem=sem[:6], total_sem=len(sem))
+    por_cliente = {}
+    for c in com:
+        por_cliente[c['cliente_id']] = por_cliente.get(c['cliente_id'], 0) + 1
+    com_ativo = set(Contrato.objects.filter(situacao='ativo').values_list('cliente_id', flat=True))
+    nomes = dict(Cliente.objects.filter(pk__in=por_cliente).values_list('pk', 'razao_social'))
+    sem_contrato = sorted((dict(cliente_id=pk, nome=nomes.get(pk, ''), qtd=n) for pk, n in por_cliente.items()
+                           if pk not in com_ativo), key=lambda x: x['nome'])
+    fora = {}
+    for c in sem:
+        chave = c['documento'] or contratos_ca._normalizar_nome(c['cliente'])
+        fora.setdefault(chave, dict(c, qtd=0))['qtd'] += 1
+    fora = sorted(fora.values(), key=lambda x: x['cliente'])
+    return dict(dados, total=len(dados['itens']), clientes=len(por_cliente) + len(fora),
+                sem_contrato=sem_contrato[:8], total_sem_contrato=len(sem_contrato), sem=fora[:8], total_sem=len(fora))
 
 
 @exige('clientes.view_cliente')
 def contratos_resumo(request):
-    """Quadro de contratos ativos carregado em segundo plano pelo início (consulta pode levar alguns segundos)."""
+    """Conferência com o Conta Azul, carregada sob demanda na tela de contratos (pode levar alguns segundos)."""
     if not servico.contaazul_config():
         return render(request, 'painel/_contratos.html', dict(contratos=None))
     return render(request, 'painel/_contratos.html', dict(contratos=_resumo_contratos(request.GET.get('atualizar') == '1')))

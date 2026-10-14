@@ -304,3 +304,22 @@ class ResponsabilidadeAdmin(admin.ModelAdmin):
         return False
 
 from .preparacao_admin import PreparacaoEnvioAdmin  # noqa: E402,F401
+
+
+from .contratos_models import Contrato, TipoContrato  # noqa: E402
+
+
+@admin.register(TipoContrato)
+class TipoContratoAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'ativo', 'descricao')
+    list_filter = ('ativo',)
+    search_fields = ('nome',)
+
+
+@admin.register(Contrato)
+class ContratoAdmin(admin.ModelAdmin):
+    list_display = ('cliente', 'tipo', 'situacao', 'data_inicio', 'data_fim', 'identificador')
+    list_filter = ('situacao', 'tipo')
+    search_fields = ('cliente__razao_social', 'cliente__nome_fantasia', 'identificador')
+    autocomplete_fields = ('cliente',)
+    list_select_related = ('cliente', 'tipo')

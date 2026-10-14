@@ -33,6 +33,14 @@ Estas regras registram decisões vigentes. Contatos de administradoras e respons
 - Não permitir sobreposição de períodos para o mesmo contato, cliente e função (comparação sem espaços externos e sem distinção de maiúsculas). Funções e pessoas diferentes são permitidas. Função permanece livre; principal/alternativo fica para outra etapa.
 - Correções de telefone/e-mail se refletem em todos os vínculos, inclusive históricos, sem versionamento desses dados. Substituir uma pessoa exige encerrar sua responsabilidade e cadastrar outra. Administradora do contato e contato/cliente da responsabilidade não são transferíveis após salvar.
 
+## Contratos
+
+Decisão do usuário em 14/10/2026: os contratos são cadastrados no sistema, não puxados do Conta Azul (um cliente pode ter dois contratos de tipos diferentes).
+
+- Tipo de contrato vem de uma lista mantida pelo usuário na tela. Tipo em uso não é apagado; pode sair da lista de contratos novos.
+- Situação: ativo, suspenso ou inativo. Fim opcional e nunca anterior ao início. Contrato não é apagado.
+- O Conta Azul serve só para conferência opcional, sem gravar nada.
+
 ## Destinatários de documentos e comunicações
 
 - O vínculo do contato com o condomínio, no escopo definido pelo usuário, destina-se exclusivamente ao recebimento de boletos, notas fiscais, laudos, comunicados e cobranças. Para cada contato naquele condomínio, selecionar cada categoria independentemente, isolada ou em qualquer combinação. Não presumir que a seleção de uma categoria habilite as demais. Esta decisão substitui a regra anterior de envio obrigatório de boleto e nota fiscal juntos ao mesmo conjunto de destinatários; não altera as regras dos demais cadastros.

@@ -67,7 +67,8 @@ class BasePreparacao(TransactionTestCase):
         with connection.cursor() as cursor:
             for table in ('clientes_itempreparacao', 'clientes_destinatariopreparacao', 'clientes_documentopreparacao', 'clientes_preparacaoenvio',
                           'clientes_itemdestinatario', 'clientes_revisaodestinatarios', 'clientes_configuracaodestinatarios', 'responsabilidades',
-                          'contatos_administradora', 'cliente_administradora', 'administradoras', 'contatos', 'historico_cnpj', 'clientes'):
+                          'clientes_contrato', 'clientes_tipocontrato', 'contatos_administradora', 'cliente_administradora', 'administradoras',
+                          'contatos', 'historico_cnpj', 'clientes'):
                 cursor.execute('DELETE FROM ' + connection.ops.quote_name(table))
 
     def nova(self, *docs):

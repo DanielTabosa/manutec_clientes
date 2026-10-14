@@ -1,0 +1,40 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Contratos{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div><h1>Contratos</h1><p class="lead">Contratos dos condomínios cadastrados na base. Um cliente pode ter vários, de tipos diferentes.</p></div>
+  <div class="actions">{% if perms.clientes.view_tipocontrato %}<a class="btn" href="{% url 'painel:tipos_contrato' %}">Tipos de contrato</a>{% endif %}
+    {% if perms.clientes.add_contrato %}<a class="btn btn-primary" href="{% url 'painel:clientes' %}"><svg class="i"><use href="#i-plus"/></svg>Novo contrato</a>{% endif %}</div>
+</div>
+<section class="card">
+  <form class="toolbar" method="get" role="search">
+    <nav class="tabs" aria-label="Filtrar por situação">{% for valor, nome, n in filtros %}<a href="?{% if valor %}situacao={{ valor }}&{% endif %}{% if tipo %}tipo={{ tipo }}&{% endif %}{% if termo %}q={{ termo|urlencode }}{% endif %}" {% if situacao == valor %}aria-current="true"{% endif %}>{{ nome }} <span class="muted">{{ n }}</span></a>{% endfor %}</nav>
+    {% if situacao %}<input type="hidden" name="situacao" value="{{ situacao }}">{% endif %}
+    <label class="sr" for="f-tipo">Tipo de contrato</label>
+    <select class="select" id="f-tipo" name="tipo" data-enviar-ao-mudar style="width:auto"><option value="">Todos os tipos</option>{% for t in tipos %}<option value="{{ t.pk }}" {% if tipo == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.nome }} ({{ t.n }})</option>{% endfor %}</select>
+    <div class="search"><svg class="i"><use href="#i-search"/></svg><label class="sr" for="q">Buscar contrato</label><input class="input" type="search" id="q" name="q" value="{{ termo }}" placeholder="Cliente ou número" autocomplete="off"></div>
+  </form>
+  {% if pagina.object_list %}
+  <div class="table-wrap"><table class="table responsive">
+    <thead><tr><th>Cliente</th><th>Tipo</th><th>Situação</th><th>Início</th><th>Fim</th><th>Referência</th><th><span class="sr">Ações</span></th></tr></thead>
+    <tbody>{% for c in pagina %}<tr data-contrato>
+      <td data-label="Cliente"><a class="row-link" href="{% url 'painel:cliente' c.cliente_id %}">{{ c.cliente.razao_social }}</a></td>
+      <td data-label="Tipo">{{ c.tipo }}</td>
+      <td data-label="Situação">{% include "painel/_situacao_contrato.html" with situacao=c.situacao rotulo=c.get_situacao_display %}</td>
+      <td data-label="Início" class="num-data">{{ c.data_inicio|date:"d/m/Y" }}</td>
+      <td data-label="Fim" class="num-data">{{ c.data_fim|date:"d/m/Y"|default:"—" }}</td>
+      <td data-label="Referência">{{ c.identificador|default:"—" }}</td>
+      <td class="acoes">{% if perms.clientes.change_contrato %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:contrato_editar' c.pk %}">Editar</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% include "painel/_paginas.html" %}
+  {% else %}<div class="empty"><strong>Nenhum contrato encontrado</strong>{% if termo or situacao or tipo %}Confira os filtros.{% else %}Abra a ficha de um cliente e use “Novo contrato”, ou importe uma lista em CSV.{% endif %}</div>{% endif %}
+</section>
+
+{% if conferir %}
+<section class="card" style="margin-top:24px" aria-labelledby="t-ctr" id="quadro-contratos" data-carregar="{% url 'painel:contratos_resumo' %}">
+  <div class="card-head"><div><h2 id="t-ctr">Conferência com o Conta Azul</h2><p class="muted small">Opcional. Compara os contratos ativos do Conta Azul com a base, sem gravar nada.</p></div>
+    <button type="button" class="btn btn-sm" data-atualizar-contratos><svg class="i"><use href="#i-refresh"/></svg>Conferir agora</button></div>
+</section>
+{% endif %}
+{% endblock %}

@@ -104,6 +104,6 @@ def resultado(request):
     if not dados:
         return redirect('painel:importar')
     destino = {'clientes': 'painel:clientes', 'contatos': 'painel:clientes', 'administradoras': 'painel:administradoras',
-               'contatos_administradora': 'painel:administradoras'}[dados['tipo']]
+               'contatos_administradora': 'painel:administradoras', 'contratos': 'painel:contratos'}[dados['tipo']]
     return render(request, 'painel/importar_resultado.html', dict(
         secao='importar', r=dados, nome_tipo=importacao.TIPOS[dados['tipo']]['nome'], destino=reverse(destino)))
