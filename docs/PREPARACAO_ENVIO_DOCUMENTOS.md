@@ -4,6 +4,8 @@ Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado di
 
 ## Conta Azul no fluxo de preparação — 14/10/2026
 
+**Migration 0008 aplicada ao banco instalado em 14/10/2026**, com autorização do usuário. Antes, backup `pg_dump` em `.venv/backups/pre_0008_20261014/pre_0008.dump` (71.055 bytes; SHA-256 em `verification.json`), restaurado em banco temporário com contagens idênticas nas 21 tabelas (208 registros); temporário removido. Depois de aplicar: quatro tabelas novas vazias, nenhuma tabela de domínio alterada (só `auth_permission` +4, `django_content_type` +4 e `django_migrations` +1, como esperado), 7 constraints `prep_*` mais o índice único parcial de documento, e `makemigrations --check` limpo.
+
 Etapa 3 do plano, autorizada pelo usuário em 14/10/2026 depois de confirmar que o e-mail de teste chegou na caixa de entrada. Implementada e validada com rede simulada; **falta um teste real pelo painel**, com token válido e um boleto e um ZIP reais escolhidos pelo usuário.
 
 - **Configuração:** `DJANGO_CONTAAZUL_AMBIENTE=producao` (ou `desenvolvimento`; vazio desabilita). Usa as credenciais locais já existentes em `.venv/contaazul`, sem lê-las ou exibi-las. O `.env` local foi configurado para produção, somente consultas GET.

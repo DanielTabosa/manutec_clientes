@@ -30,7 +30,7 @@ O schema contém oito tabelas de domínio; sua existência na instalação foi r
 | `responsabilidades` | Cadastro/edição/encerramento, períodos, filtros, painel/API e encerramento na troca da empresa |
 | `destinatarios_faturamento` | SQL legado preservado; não usado pelo módulo novo |
 | Configuração/revisão/item de destinatários | Três tabelas gerenciadas na migration 0007; painel/API implementados e migration aplicada em 28/09/2026 |
-| Preparação de envio (preparação/documento/destinatário/item) | Quatro tabelas na migration 0008, painel implementado em 14/10/2026; **0008 ainda não aplicada ao banco instalado** |
+| Preparação de envio (preparação/documento/destinatário/item) | Quatro tabelas na migration 0008, painel implementado em 14/10/2026; 0008 aplicada ao banco instalado em 14/10/2026, após backup verificado |
 
 Consultas BrasilAPI/ViaCEP implementadas nos formulários pertinentes. Parcial: identidade de contatos, telefone/e-mail únicos por registro, função livre, histórico editável de contatos e consulta aos anteriores. Pendente: prioridade/alternativo estruturado, apresentação compacta de dois anteriores, frontend próprio e integrações operacionais.
 
@@ -101,3 +101,5 @@ Etapa 1 do plano até produção (meta MVP 27/11/2026) concluída em 14/10/2026:
 Etapa 2 (SMTP) implementada em 14/10/2026: envio pelo painel com status por destinatário, sem duplicidade e com repetição apenas das falhas. Conta real configurada; teste SMTP aceito pelo servidor em 14/10/2026. 60 testes SQLite e 14 verificações PostgreSQL descartáveis aprovados. Migration 0008 ainda não aplicada ao banco instalado.
 
 Etapa 3 implementada em 14/10/2026: no rascunho de preparação, busca de boleto no Conta Azul (vencimento e valor) e importação de NFS-e do ZIP (somente notas do CNPJ atual do cliente, conferidas como EMITIDA na API). Validada com rede simulada; falta um teste real pelo painel. 64 testes Django, 54 testes Conta Azul e 14 verificações PostgreSQL descartáveis aprovados. Migration 0008 ainda não aplicada ao banco instalado.
+
+**Migration 0008 aplicada ao banco instalado em 14/10/2026**, com autorização do usuário. Antes, backup `pg_dump` em `.venv/backups/pre_0008_20261014/pre_0008.dump` (71.055 bytes; SHA-256 em `verification.json`), restaurado em banco temporário com contagens idênticas nas 21 tabelas (208 registros); temporário removido. Depois de aplicar: quatro tabelas novas vazias, nenhuma tabela de domínio alterada (só `auth_permission` +4, `django_content_type` +4 e `django_migrations` +1, como esperado), 7 constraints `prep_*` mais o índice único parcial de documento, e `makemigrations --check` limpo.
