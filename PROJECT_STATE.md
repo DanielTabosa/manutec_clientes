@@ -98,4 +98,4 @@ Protótipo concluído em 14/10/2026: [docs/prototipos/documentos/index.html](doc
 
 Etapa 1 do plano até produção (meta MVP 27/11/2026) concluída em 14/10/2026: preparação de envio no painel, com histórico, retrato na confirmação e prevenção de reenvio; nenhum envio real. 55 testes SQLite e 13 verificações PostgreSQL descartáveis aprovados; fluxo Edge inspecionado. Detalhes e regras adotadas em [preparação do envio](docs/PREPARACAO_ENVIO_DOCUMENTOS.md). Próxima etapa: SMTP.
 
-Etapa 2 (SMTP) implementada em 14/10/2026: envio pelo painel com status por destinatário, sem duplicidade e com repetição apenas das falhas. Falta o teste real com a conta do cPanel (`manage.py testar_smtp`). 60 testes SQLite e 14 verificações PostgreSQL descartáveis aprovados. Migration 0008 ainda não aplicada ao banco instalado.
+Etapa 2 (SMTP) implementada em 14/10/2026: envio pelo painel com status por destinatário, sem duplicidade e com repetição apenas das falhas. Conta real configurada; teste SMTP aceito pelo servidor em 14/10/2026. 60 testes SQLite e 14 verificações PostgreSQL descartáveis aprovados. Migration 0008 ainda não aplicada ao banco instalado.

@@ -4,7 +4,7 @@ Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado di
 
 ## Envio por e-mail (SMTP) — 14/10/2026
 
-Etapa 2 do plano, aprovada pelo usuário em 14/10/2026, que também aprovou as regras da etapa 1: bloqueio de reenvio com motivo e um envio por e-mail. Implementado e validado com servidor simulado; **falta o teste real com a conta do cPanel**.
+Etapa 2 do plano, aprovada pelo usuário em 14/10/2026, que também aprovou as regras da etapa 1: bloqueio de reenvio com motivo e um envio por e-mail. Implementado e validado com servidor simulado. **Conta real configurada em 14/10/2026:** `mail.manutecvalvulas.com.br`, porta 465 com SSL, remetente `financeiro@manutecvalvulas.com.br`; senha preenchida pelo usuário no `.env`. O `testar_smtp` executado pelo usuário teve a mensagem aceita pelo servidor; a chegada na caixa ainda não foi informada. DNS público: SPF inclui o IP do servidor de e-mail, DKIM publicado e DMARC ausente (recomendado, não bloqueante). O painel do cPanel não oferece Email Deliverability.
 
 - **Configuração** no `backend/.env` (modelo em `.env.example`): `DJANGO_EMAIL_HOST`, `DJANGO_EMAIL_PORT` (465 SSL ou 587 TLS, nunca ambos), `DJANGO_EMAIL_USE_SSL`/`USE_TLS`, `DJANGO_EMAIL_USER`, `DJANGO_EMAIL_PASSWORD`, `DJANGO_EMAIL_FROM` e `DJANGO_EMAIL_REPLY_TO` (opcional). Sem host ou remetente, o painel informa que o envio não está configurado. A senha é preenchida pelo usuário, nunca no chat.
 - **Teste da conta:** `.venv/Scripts/python.exe backend/manage.py testar_smtp --para <endereço do próprio usuário>`. Mensagem simples, sem anexos, para um endereço escolhido pelo usuário.

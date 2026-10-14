@@ -1,9 +1,9 @@
-# Retomada — etapa 2 (SMTP) implementada; falta teste real com a conta do cPanel
+# Retomada — etapa 2 (SMTP) concluída; próxima: etapa 3 (Conta Azul no fluxo)
 
 ## Plano aprovado em 14/10/2026 (meta: MVP em produção em 27/11/2026)
 
 1. ✅ Preparação no painel, com histórico, retrato na confirmação e prevenção de reenvio. Regras aprovadas pelo usuário em 14/10.
-2. 🟡 Envio por SMTP: implementado e validado com servidor simulado. **Pendente:** o usuário coletar os dados do cPanel, preencher `backend/.env` (variáveis `DJANGO_EMAIL_*`, modelo em `.env.example`) e rodar `python backend/manage.py testar_smtp --para <endereço dele>`. Orientação de onde encontrar os dados no cPanel foi dada em 14/10.
+2. ✅ Envio por SMTP: conta `financeiro@manutecvalvulas.com.br` (`mail.manutecvalvulas.com.br`:465 SSL) configurada no `.env`, senha pelo usuário. `testar_smtp` aceito pelo servidor em 14/10; confirmar com o usuário se chegou na caixa de entrada ou no spam. DMARC ausente: recomendação futura (Zone Editor).
 3. Busca de boleto (`contaazul_boleto.py`) e NFS-e (ZIP) dentro do fluxo, com associação conferida pelo usuário.
 4. Implantação: hospedagem a definir pelo usuário, HTTPS, DEBUG desligado, segredos, backup e restauração.
 5. Homologação com a base definitiva e treinamento.
