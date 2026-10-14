@@ -9,7 +9,8 @@
    - ✅ 1ª entrega em 14/10 (meta era 21/10): login, início com lista de trabalho, clientes, ficha do cliente, envio de documentos e preparação completa.
    - ✅ 2ª entrega em 14/10 (meta era 31/10): cadastro e edição de cliente com consulta de CNPJ/CEP, troca de CNPJ, administradora, contatos, administradoras e configuração de destinatários. Responsabilidades seguem no admin.
    - Pendente, a pedido do usuário: discutir a paleta de cores (hoje navy + verde de confirmação).
-4. Implantação: hospedagem a definir pelo usuário, HTTPS, DEBUG desligado, segredos, backup e restauração. Decidir a renovação de token do Conta Azul em produção (hoje é manual).
+4. ⏸ Implantação **interrompida pelo usuário em 14/10** antes de qualquer mudança; retomar só quando ele pedir. Pendente decisão dele: hospedagem (VPS recomendado; cPanel só com Python App + PostgreSQL; ou PC do escritório) e acesso (internet ou só escritório). Também a renovação de token do Conta Azul (hoje manual).
+   - Antes da implantação, sugerido: envio real de uma preparação completa (boleto + nota) para um contato com o e-mail do próprio usuário, ainda não feito.
 5. Homologação com a base definitiva e treinamento.
 
 ## Estado técnico
