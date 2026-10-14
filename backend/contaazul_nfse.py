@@ -83,11 +83,21 @@ def ler_xml(raw):
             'valor': dinheiro(unico(dps, 'valores/vServPrest/vServ').text)}
 
 
-def ler_zip(caminho):
-    """Le pares sem extrair; resultados so carregam campos de conferencia e indice anonimo."""
-    caminho = Path(caminho)
-    if not caminho.is_file() or caminho.stat().st_size > LIMITE_ZIP:
-        raise ValueError()
+def ler_zip(caminho, *, com_pdf=False):
+    """Le pares sem extrair; resultados so carregam campos de conferencia e indice anonimo.
+
+    Aceita caminho ou arquivo aberto (upload do painel). Com `com_pdf`, cada par inclui
+    o conteudo do PDF e o nome-base do arquivo, para anexar sem gravar no disco."""
+    if hasattr(caminho, 'read'):
+        caminho.seek(0, 2)
+        tamanho = caminho.tell()
+        caminho.seek(0)
+        if tamanho > LIMITE_ZIP:
+            raise ValueError()
+    else:
+        caminho = Path(caminho)
+        if not caminho.is_file() or caminho.stat().st_size > LIMITE_ZIP:
+            raise ValueError()
     pairs, issues = [], []
     with zipfile.ZipFile(caminho) as z:
         entries = z.infolist()
@@ -119,7 +129,8 @@ def ler_zip(caminho):
                 pdf = contents['pdf']
                 if not pdf.startswith(b'%PDF-') or not pdf.rstrip().endswith(b'%%EOF'):
                     raise ValueError()
-                pairs.append({'item': item, **dados})
+                extra = {'pdf': pdf, 'arquivo': files['pdf'][0].filename.replace('\\', '/').rsplit('/', 1)[-1]} if com_pdf else {}
+                pairs.append({'item': item, **dados, **extra})
             except (ValueError, ET.ParseError, zipfile.BadZipFile, RuntimeError, NotImplementedError):
                 issues.append((item, 'XML/PDF invalido, incompleto, protegido ou fora dos limites'))
     return pairs, issues

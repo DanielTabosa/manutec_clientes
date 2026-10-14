@@ -1,3 +1,5 @@
+from datetime import date
+
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -83,7 +85,8 @@ class PreparacaoEnvioAdmin(admin.ModelAdmin):
                         title=f'Preparação {prep.pk} — {prep.cliente}', erros=erros, categorias=NOMES_CATEGORIAS.items(),
                         pode_editar=pode_editar and prep.status == 'rascunho',
                         pode_confirmar=pode_confirmar and prep.status == 'rascunho',
-                        destinatarios_url=reverse('admin:clientes_cliente_destinatarios', args=[prep.cliente_id]))
+                        destinatarios_url=reverse('admin:clientes_cliente_destinatarios', args=[prep.cliente_id]),
+                        contaazul=bool(servico.contaazul_config()))
         if prep.status == 'rascunho':
             contexto['plano'] = servico.plano(prep)
             if request.method == 'POST' and request.POST.get('acao') in ('salvar_texto', 'confirmar'):
@@ -117,6 +120,30 @@ class PreparacaoEnvioAdmin(admin.ModelAdmin):
                 messages.success(request, f'{anexados} documento(s) anexado(s).')
             if falhas:
                 raise ValidationError(falhas)
+        elif acao == 'boleto_contaazul':
+            try:
+                vencimento = date.fromisoformat(post.get('vencimento', ''))
+            except ValueError:
+                raise ValidationError('Informe a data de vencimento do boleto.')
+            doc = servico.importar_boleto(prep.pk, vencimento, servico.ler_valor(post.get('valor')), request.user)
+            messages.success(request, f'Boleto do Conta Azul anexado ({doc.referencia}). Visualize e confira se é deste cliente.')
+        elif acao == 'zip_nfse':
+            arquivo = request.FILES.get('zip')
+            if not arquivo:
+                raise ValidationError('Escolha o ZIP de NFS-e baixado do Conta Azul.')
+            try:
+                ano, mes = (int(x) for x in post.get('competencia', '').split('-'))
+                competencia = date(ano, mes, 1)
+            except ValueError:
+                raise ValidationError('Informe a competência (mês e ano) das notas.')
+            r = servico.importar_nfse_zip(prep.pk, arquivo, competencia, request.user)
+            if r['anexadas']:
+                messages.success(request, f"{len(r['anexadas'])} NFS-e anexada(s): {', '.join(map(str, r['anexadas']))}. "
+                                          f"{r['outros_tomadores']} nota(s) de outros tomadores ignorada(s). Visualize e confira.")
+            if r['pendentes']:
+                raise ValidationError([f'NFS-e {n}: {motivo} — não anexada.' for n, motivo in r['pendentes']])
+            if not r['anexadas']:
+                raise ValidationError('Nenhuma NFS-e anexada.')
         elif acao == 'remover':
             doc = servico.remover_documento(prep.pk, post.get('documento'))
             messages.success(request, f'{doc.nome_original} removido desta preparação.')

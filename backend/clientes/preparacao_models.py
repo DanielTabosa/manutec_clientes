@@ -70,6 +70,7 @@ class DocumentoPreparacao(models.Model):
     tamanho = models.PositiveIntegerField()
     sha256 = models.CharField(max_length=64)
     referencia = models.CharField(max_length=120, blank=True)
+    origem = models.CharField(max_length=10, choices=[('manual', 'Arquivo enviado'), ('contaazul', 'Conta Azul'), ('zip_nfse', 'ZIP de NFS-e')], default='manual')
     anexado_em = models.DateTimeField(auto_now_add=True)
     anexado_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
     # Remoção no rascunho preserva arquivo e registro.

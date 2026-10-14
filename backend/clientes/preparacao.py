@@ -48,16 +48,19 @@ def ler_pdf(upload):
     return dados
 
 
-@transaction.atomic
 def anexar(preparacao_id, upload, categoria, referencia, autor):
     if categoria not in NOMES_CATEGORIAS:
         raise ValidationError('Escolha a categoria do documento.')
-    dados = ler_pdf(upload)
+    return _anexar_bytes(preparacao_id, upload.name, ler_pdf(upload), categoria, referencia, autor)
+
+
+@transaction.atomic
+def _anexar_bytes(preparacao_id, nome, dados, categoria, referencia, autor, origem='manual'):
     prep = _rascunho(preparacao_id)
     sha = hashlib.sha256(dados).hexdigest()
     if prep.documentos.filter(sha256=sha, removido_em__isnull=True).exists():
-        raise ValidationError(f'{upload.name}: este mesmo arquivo já está anexado.')
-    doc = DocumentoPreparacao(preparacao=prep, categoria=categoria, nome_original=upload.name[:200], tamanho=len(dados),
+        raise ValidationError(f'{nome}: este mesmo arquivo já está anexado.')
+    doc = DocumentoPreparacao(preparacao=prep, categoria=categoria, nome_original=nome[:200], tamanho=len(dados), origem=origem,
                               sha256=sha, referencia=(referencia or '').strip()[:120], anexado_por=autor)
     doc.arquivo.save('documento.pdf', ContentFile(dados), save=False)
     try:
@@ -65,7 +68,7 @@ def anexar(preparacao_id, upload, categoria, referencia, autor):
             doc.save()
     except IntegrityError:
         doc.arquivo.delete(save=False)
-        raise ValidationError(f'{upload.name}: este mesmo arquivo já está anexado.')
+        raise ValidationError(f'{nome}: este mesmo arquivo já está anexado.')
     return doc
 
 
@@ -221,4 +224,104 @@ def enviar(preparacao_id, autor, incluir_indeterminados=False):
             conexao.close()
         except Exception:
             pass
+    return resultado
+
+
+def contaazul_config():
+    """Arquivo local de credenciais do ambiente escolhido; None desabilita a busca no painel."""
+    from django.conf import settings
+    from contaazul_auth import CONFIG, CONFIG_PRODUCAO
+    return {'producao': CONFIG_PRODUCAO, 'desenvolvimento': CONFIG}.get(settings.CONTAAZUL_AMBIENTE)
+
+
+def _erro_contaazul(exc, etapa):
+    from urllib.error import HTTPError
+    if isinstance(exc, HTTPError):
+        exc.close()
+        if exc.code == 401:
+            return ValidationError('O Conta Azul recusou o acesso (HTTP 401): a autorização expirou. '
+                                   'Renove com contaazul_auth.py e tente de novo.')
+        return ValidationError(f'O Conta Azul respondeu HTTP {exc.code} na etapa {etapa}. Nada foi anexado.')
+    return None
+
+
+def _reais(valor):
+    return f'{valor:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+
+
+def ler_valor(texto):
+    from decimal import Decimal, InvalidOperation
+    texto = (texto or '').strip().replace('R$', '').replace(' ', '')
+    if ',' in texto:
+        texto = texto.replace('.', '').replace(',', '.')
+    try:
+        valor = Decimal(texto)
+    except InvalidOperation:
+        raise ValidationError('Informe o valor no formato 1.500,00.')
+    if not valor.is_finite() or valor <= 0 or valor != valor.quantize(Decimal('0.01')):
+        raise ValidationError('Informe o valor no formato 1.500,00.')
+    return valor
+
+
+def _rascunho_sem_bloqueio(preparacao_id):
+    # Consultas externas acontecem fora de transação; o anexo revalida o rascunho com bloqueio.
+    prep = PreparacaoEnvio.objects.get(pk=preparacao_id)
+    if prep.status != 'rascunho':
+        raise ValidationError('Esta preparação não é mais um rascunho.')
+    return prep
+
+
+def importar_boleto(preparacao_id, vencimento, valor, autor):
+    """Baixa (somente GET) o boleto único com vencimento e valor exatos; o usuário confere o PDF no rascunho."""
+    import contaazul_boleto
+    caminho = contaazul_config()
+    if not caminho:
+        raise ValidationError('Busca no Conta Azul não configurada (DJANGO_CONTAAZUL_AMBIENTE).')
+    _rascunho_sem_bloqueio(preparacao_id)
+    estado = {'etapa': 'configuracao'}
+    try:
+        dados = contaazul_boleto.baixar_pdf(vencimento, valor, caminho, estado, log=lambda *_: None)
+    except Exception as exc:
+        raise _erro_contaazul(exc, estado['etapa']) or ValidationError(
+            f'Nenhum boleto único encontrado para vencimento {vencimento:%d/%m/%Y} e valor R$ {_reais(valor)} '
+            f'(etapa: {estado["etapa"]}). É preciso exatamente uma conta pendente e uma cobrança registrada.')
+    return _anexar_bytes(preparacao_id, f'boleto-{vencimento:%Y%m%d}.pdf', dados, 'boleto',
+                         f'Conta Azul · venc. {vencimento:%d/%m/%Y} · R$ {_reais(valor)}', autor, origem='contaazul')
+
+
+def importar_nfse_zip(preparacao_id, arquivo, competencia, autor):
+    """Anexa as NFS-e do ZIP cujo tomador é o CNPJ atual do cliente e que o Conta Azul confirma como EMITIDA."""
+    import re
+    import contaazul_nfse
+    from .models import HistoricoCNPJ
+    caminho = contaazul_config()
+    if not caminho:
+        raise ValidationError('Busca no Conta Azul não configurada (DJANGO_CONTAAZUL_AMBIENTE).')
+    prep = _rascunho_sem_bloqueio(preparacao_id)
+    cnpjs = {re.sub(r'[^0-9]', '', c) for c in HistoricoCNPJ.objects.filter(
+        cliente_id=prep.cliente_id, data_fim__isnull=True).values_list('cnpj', flat=True)}
+    try:
+        pares, problemas = contaazul_nfse.ler_zip(arquivo, com_pdf=True)
+    except Exception:
+        raise ValidationError('ZIP inválido, protegido ou acima dos limites (100 MB, 2.000 arquivos).')
+    do_cliente = [par for par in pares if par['documento'] in cnpjs]
+    if not do_cliente:
+        raise ValidationError(f'Nenhuma das {len(pares)} nota(s) do ZIP tem como tomador o CNPJ atual deste cliente. Nada foi anexado.')
+    try:
+        notas = contaazul_nfse.consultar(competencia, caminho)
+    except Exception as exc:
+        raise _erro_contaazul(exc, 'consulta de NFS-e') or ValidationError(
+            'Não foi possível concluir a consulta de NFS-e no Conta Azul para a competência. Nada foi anexado.')
+    reconhecidas, diferencas = contaazul_nfse.conferir(do_cliente, notas)
+    por_item = {par['item']: par for par in do_cliente}
+    resultado = dict(anexadas=[], outros_tomadores=len(pares) - len(do_cliente), problemas_zip=len(problemas),
+                     pendentes=[(por_item[item]['numero_nfse'], motivo) for item, motivo in diferencas])
+    for item in reconhecidas:
+        par = por_item[item]
+        try:
+            _anexar_bytes(preparacao_id, par['arquivo'], par['pdf'], 'nota_fiscal',
+                          f"NFS-e {par['numero_nfse']} · R$ {_reais(par['valor'])}", autor, origem='zip_nfse')
+            resultado['anexadas'].append(par['numero_nfse'])
+        except ValidationError as exc:
+            resultado['pendentes'].append((par['numero_nfse'], exc.messages[0]))
     return resultado

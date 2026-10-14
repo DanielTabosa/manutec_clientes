@@ -37,7 +37,7 @@ def pdf(nome, conteudo='a'):
     return SimpleUploadedFile(nome, f'%PDF-1.4\n{conteudo}\n%%EOF\n'.encode(), content_type='application/pdf')
 
 
-class PreparacaoTests(TransactionTestCase):
+class BasePreparacao(TransactionTestCase):
     def setUp(self):
         self.pasta = tempfile.mkdtemp()
         self.settings_ctx = override_settings(ARQUIVOS_PRIVADOS_DIR=self.pasta)
@@ -81,6 +81,8 @@ class PreparacaoTests(TransactionTestCase):
         return p.confirmar(prep.pk, impressao=p.plano(prep)['impressao'], assunto=prep.assunto, mensagem=prep.mensagem,
                            autor=self.user, motivo_reenvio=motivo)
 
+
+class PreparacaoTests(BasePreparacao):
     def test_plano_categorias_independentes_sem_email_e_mesmo_email(self):
         prep = self.nova(('boleto.pdf', 'boleto', 'b'), ('nota.pdf', 'nota_fiscal', 'n'))
         plano = p.plano(prep)
@@ -249,3 +251,95 @@ class PreparacaoTests(TransactionTestCase):
             pagina = self.client.get(url).content.decode()
             self.assertIn('Aceito pelo servidor', pagina)
             self.assertNotIn('Enviar e-mails (', pagina)
+
+
+def zip_nfse(*notas):
+    import io as _io
+    import zipfile
+    buffer = _io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as z:
+        for numero, documento in notas:
+            z.writestr(f'PDF/nota-{numero}.pdf', f'%PDF-1.4\nnota {numero}\n%%EOF\n'.encode())
+            z.writestr(f'XML/nota-{numero}.xml', (
+                f'<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe><nNFSe>{numero}</nNFSe>'
+                f'<DPS><infDPS><nDPS>{numero + 400}</nDPS><toma><CNPJ>{documento}</CNPJ></toma>'
+                '<valores><vServPrest><vServ>1500.00</vServ></vServPrest></valores></infDPS></DPS></infNFSe></NFSe>').encode())
+    return SimpleUploadedFile('notas.zip', buffer.getvalue(), content_type='application/zip')
+
+
+class ContaAzulPreparacaoTests(BasePreparacao):
+    CNPJ = '11111111000101'
+
+    def setUp(self):
+        super().setUp()
+        HistoricoCNPJ.objects.create(cliente=self.c, cnpj=self.CNPJ, data_inicio=date(2020, 1, 1))
+
+    def nota_api(self, numero, status='EMITIDA', documento=None):
+        return {'numero_nfse': numero, 'numero_rps': numero + 400, 'documento_cliente': documento or self.CNPJ,
+                'valor_total_nfse': 1500, 'status': status}
+
+    def test_valor_em_formato_brasileiro(self):
+        from decimal import Decimal
+        self.assertEqual(p.ler_valor('R$ 1.500,00'), Decimal('1500.00'))
+        self.assertEqual(p.ler_valor('1500.5'), Decimal('1500.5'))
+        for invalido in ('abc', '0', '10,555'):
+            with self.assertRaises(ValidationError):
+                p.ler_valor(invalido)
+
+    def test_boleto_do_conta_azul_e_erros(self):
+        from unittest.mock import patch
+        from urllib.error import HTTPError
+        from decimal import Decimal
+        prep = self.nova()
+        venc, valor = date(2026, 11, 13), Decimal('1500.00')
+        with self.assertRaisesMessage(ValidationError, 'não configurada'):
+            p.importar_boleto(prep.pk, venc, valor, self.user)
+        with override_settings(CONTAAZUL_AMBIENTE='producao'):
+            with patch('contaazul_boleto.baixar_pdf', return_value=b'%PDF-1.4\nboleto\n%%EOF\n') as baixar:
+                doc = p.importar_boleto(prep.pk, venc, valor, self.user)
+            self.assertEqual(baixar.call_args.args[:2], (venc, valor))
+            self.assertEqual((doc.categoria, doc.origem, doc.nome_original), ('boleto', 'contaazul', 'boleto-20261113.pdf'))
+            self.assertIn('R$ 1.500,00', doc.referencia)
+            with patch('contaazul_boleto.baixar_pdf', side_effect=HTTPError('https://x', 401, 'n', None, None)):
+                with self.assertRaisesMessage(ValidationError, 'HTTP 401'):
+                    p.importar_boleto(prep.pk, venc, valor, self.user)
+            with patch('contaazul_boleto.baixar_pdf', side_effect=ValueError()):
+                with self.assertRaisesMessage(ValidationError, 'Nenhum boleto único'):
+                    p.importar_boleto(prep.pk, venc, valor, self.user)
+        self.assertEqual(prep.documentos.count(), 1)
+
+    def test_zip_anexa_so_notas_do_cliente_emitidas(self):
+        from unittest.mock import patch
+        prep = self.nova()
+        api = [self.nota_api(101), self.nota_api(102, status='CANCELAMENTO_MANUAL'), self.nota_api(103, documento='22222222000102')]
+        with override_settings(CONTAAZUL_AMBIENTE='producao'), patch('contaazul_nfse.consultar', return_value=api) as consultar:
+            r = p.importar_nfse_zip(prep.pk, zip_nfse((101, self.CNPJ), (102, self.CNPJ), (103, '22222222000102')), date(2026, 10, 1), self.user)
+            self.assertEqual(consultar.call_args.args[0], date(2026, 10, 1))
+            self.assertEqual((r['anexadas'], r['outros_tomadores']), ([101], 1))
+            self.assertEqual(r['pendentes'], [(102, 'status diferente de EMITIDA')])
+            doc = prep.documentos.get()
+            self.assertEqual((doc.categoria, doc.origem, doc.nome_original), ('nota_fiscal', 'zip_nfse', 'nota-101.pdf'))
+            r = p.importar_nfse_zip(prep.pk, zip_nfse((101, self.CNPJ)), date(2026, 10, 1), self.user)
+            self.assertIn('já está anexado', r['pendentes'][0][1])
+            with self.assertRaisesMessage(ValidationError, 'tomador o CNPJ atual'):
+                p.importar_nfse_zip(prep.pk, zip_nfse((103, '22222222000102')), date(2026, 10, 1), self.user)
+        with override_settings(CONTAAZUL_AMBIENTE='producao'), patch('contaazul_nfse.consultar', side_effect=ValueError()):
+            with self.assertRaisesMessage(ValidationError, 'Nada foi anexado'):
+                p.importar_nfse_zip(prep.pk, zip_nfse((104, self.CNPJ)), date(2026, 10, 1), self.user)
+        with override_settings(CONTAAZUL_AMBIENTE='producao'):
+            with self.assertRaisesMessage(ValidationError, 'ZIP inválido'):
+                p.importar_nfse_zip(prep.pk, SimpleUploadedFile('x.zip', b'nao e zip'), date(2026, 10, 1), self.user)
+        self.assertEqual(prep.documentos.count(), 1)
+
+    def test_painel_busca_boleto(self):
+        from unittest.mock import patch
+        prep = self.nova()
+        self.client.force_login(self.user)
+        url = reverse('admin:clientes_preparacaoenvio_change', args=[prep.pk])
+        self.assertContains(self.client.get(url), 'Busca no Conta Azul desabilitada')
+        with override_settings(CONTAAZUL_AMBIENTE='producao'), patch('contaazul_boleto.baixar_pdf', return_value=b'%PDF-1.4\nb\n%%EOF\n'):
+            self.assertContains(self.client.get(url), 'Buscar boleto')
+            self.client.post(url, {'acao': 'boleto_contaazul', 'vencimento': '2026-11-13', 'valor': '1.500,00'})
+            self.assertContains(self.client.post(url, {'acao': 'boleto_contaazul', 'vencimento': '', 'valor': '1'}), 'data de vencimento')
+        self.assertEqual(prep.documentos.get().origem, 'contaazul')
+        self.assertContains(self.client.get(url), 'Conta Azul')

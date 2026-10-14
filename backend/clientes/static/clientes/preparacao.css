@@ -57,6 +57,12 @@
 
 .prep-anexar { display: grid; grid-template-columns: 2fr 1fr 2fr auto; gap: 12px; align-items: end; padding: 14px; background: var(--darkened-bg); border-radius: var(--prep-raio); }
 .prep-campo { margin-bottom: 12px; }
+.prep-subtitulo { margin: 20px 0 4px; font-size: 15px; }
+.prep-contaazul { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.prep-cartao { padding: 14px; border: 1px solid var(--hairline-color); border-radius: var(--prep-raio); }
+.prep-cartao-titulo { margin: 0 0 10px; font-weight: 600; font-size: 14px; }
+.prep-cartao input[type="date"], .prep-cartao input[type="month"], .prep-cartao input[type="text"] { width: 100%; box-sizing: border-box; min-height: 36px; }
+.prep-cartao .prep-dica { margin-bottom: 10px; }
 .prep-anexar .prep-campo { margin: 0; }
 .prep-campo label { display: block; font-weight: 600; margin-bottom: 4px; }
 .prep-campo input[type="text"], .prep-campo select, .prep-campo textarea { width: 100%; box-sizing: border-box; min-height: 36px; }
@@ -89,7 +95,7 @@
 .prep-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 @media (max-width: 767px) {
-  .prep-anexar { grid-template-columns: 1fr; }
+  .prep-anexar, .prep-contaazul { grid-template-columns: 1fr; }
   .prep-secao { padding: 14px; }
   .prep-tabela thead { display: none; }
   .prep-tabela, .prep-tabela tbody, .prep-tabela tr, .prep-tabela td { display: block; width: 100%; box-sizing: border-box; }

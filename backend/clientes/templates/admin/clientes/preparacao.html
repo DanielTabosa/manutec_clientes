@@ -28,7 +28,7 @@
       <tbody>{% for d in plano.documentos %}<tr data-documento>
         <td class="prep-arquivo">{{ d.nome_original }}</td>
         <td><span class="prep-chip prep-chip-{{ d.categoria }}">{{ d.get_categoria_display }}</span></td>
-        <td>{{ d.referencia|default:"—" }}</td>
+        <td>{{ d.referencia|default:"—" }}{% if d.origem != 'manual' %}<div class="prep-meta">{{ d.get_origem_display }}</div>{% endif %}</td>
         <td>{{ d.tamanho|filesizeformat }}</td>
         <td class="prep-acoes"><a class="button" href="{% url 'admin:clientes_preparacaoenvio_documento' prep.pk d.pk %}" target="_blank" rel="noopener" aria-label="Visualizar {{ d.nome_original }}">Visualizar</a>
           {% if pode_editar %}<form method="post">{% csrf_token %}<input type="hidden" name="acao" value="remover"><input type="hidden" name="documento" value="{{ d.pk }}"><button type="submit" class="prep-botao-secundario" aria-label="Remover {{ d.nome_original }}">Remover</button></form>{% endif %}</td>
@@ -43,6 +43,28 @@
       <div class="prep-campo"><label for="referencia">Referência <span class="prep-opcional">(opcional)</span></label><input type="text" id="referencia" name="referencia" maxlength="120" placeholder="Ex.: vencimento 13/11, NFS-e 1234"></div>
       <div class="prep-campo prep-campo-botao"><button type="submit">Anexar</button></div>
     </form>
+    <h3 class="prep-subtitulo">Buscar no Conta Azul</h3>
+    {% if contaazul %}
+    <p class="prep-ajuda">Somente consulta. Os documentos entram no rascunho para você visualizar e conferir antes de confirmar.</p>
+    <div class="prep-contaazul">
+      <form method="post" class="prep-cartao">{% csrf_token %}
+        <input type="hidden" name="acao" value="boleto_contaazul">
+        <p class="prep-cartao-titulo">Boleto</p>
+        <div class="prep-campo"><label for="vencimento">Vencimento</label><input type="date" id="vencimento" name="vencimento" required></div>
+        <div class="prep-campo"><label for="valor">Valor (R$)</label><input type="text" id="valor" name="valor" inputmode="decimal" placeholder="1.500,00" required></div>
+        <p class="prep-dica">Exige uma única conta pendente com esse vencimento e valor, com cobrança registrada.</p>
+        <button type="submit">Buscar boleto</button>
+      </form>
+      <form method="post" enctype="multipart/form-data" class="prep-cartao">{% csrf_token %}
+        <input type="hidden" name="acao" value="zip_nfse">
+        <p class="prep-cartao-titulo">Notas fiscais (ZIP)</p>
+        <div class="prep-campo"><label for="zip">ZIP de NFS-e baixado do Conta Azul</label><input type="file" id="zip" name="zip" accept=".zip,application/zip" required></div>
+        <div class="prep-campo"><label for="competencia">Competência</label><input type="month" id="competencia" name="competencia" required></div>
+        <p class="prep-dica">Anexa só as notas cujo tomador é o CNPJ atual do cliente e que o Conta Azul confirma como emitidas.</p>
+        <button type="submit">Importar notas</button>
+      </form>
+    </div>
+    {% else %}<p class="prep-dica">Busca no Conta Azul desabilitada neste servidor (DJANGO_CONTAAZUL_AMBIENTE).</p>{% endif %}
     {% endif %}
   </section>
 
