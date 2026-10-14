@@ -15,6 +15,14 @@ O usuário não conseguiu testar porque: (1) os clientes com CNPJ real não tinh
 
 Validação: 66 testes Django/SQLite, 56 testes Conta Azul (2 novos de listagem paginada) e listagem real somente leitura. Sem migration nova.
 
+## Voltar atrás numa preparação confirmada — decisão do usuário em 14/10/2026
+
+O usuário pediu que um engano possa ser desfeito até o fim da operação. A regra anterior (confirmada não podia ser cancelada) foi substituída por esta:
+
+- **Voltar para rascunho:** permitido enquanto nenhum e-mail saiu (nenhum destinatário Aceito ou Indeterminado). Apaga o retrato da confirmação (destinatários e itens) e preserva os documentos. A preparação volta a ser editável e precisa ser confirmada de novo, com nova conferência. Exige a permissão `confirmar_preparacaoenvio`.
+- **Cancelar:** permitido no rascunho e na confirmada enquanto houver algum destinatário não Aceito, ou seja, até a operação terminar. Depois de cancelada, nada mais é enviado. Os e-mails já aceitos não podem ser desfeitos, ficam no histórico e **continuam contando para o bloqueio de reenvio**. Com todos os e-mails aceitos, a operação terminou e não pode ser cancelada.
+- Ambos pedem confirmação na tela e estão no painel e no admin. Validado com 4 testes novos (80 no total).
+
 ## Conta Azul no fluxo de preparação — 14/10/2026
 
 **Migration 0008 aplicada ao banco instalado em 14/10/2026**, com autorização do usuário. Antes, backup `pg_dump` em `.venv/backups/pre_0008_20261014/pre_0008.dump` (71.055 bytes; SHA-256 em `verification.json`), restaurado em banco temporário com contagens idênticas nas 21 tabelas (208 registros); temporário removido. Depois de aplicar: quatro tabelas novas vazias, nenhuma tabela de domínio alterada (só `auth_permission` +4, `django_content_type` +4 e `django_migrations` +1, como esperado), 7 constraints `prep_*` mais o índice único parcial de documento, e `makemigrations --check` limpo.

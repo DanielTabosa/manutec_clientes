@@ -137,7 +137,7 @@
         {% if pode_confirmar %}<button type="submit" name="acao" value="confirmar" class="btn btn-confirm" id="confirmar" {% if not plano.envios %}disabled{% endif %}><svg class="i"><use href="#i-check"/></svg>Confirmar preparação</button>{% endif %}
       </div>
     </form>
-    {% if pode_editar %}<form method="post" class="card-body" style="border-top:1px solid var(--border);padding-top:16px" data-confirmar-acao="Cancelar esta preparação? Registros e arquivos serão preservados.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="btn btn-sm btn-danger">Cancelar preparação</button></form>{% endif %}
+    {% if pode_cancelar %}<form method="post" class="card-body" style="border-top:1px solid var(--border);padding-top:16px" data-confirmar-acao="Cancelar esta preparação? Registros e arquivos serão preservados.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="btn btn-sm btn-danger">Cancelar preparação</button></form>{% endif %}
   </section>
 </div>
 
@@ -166,6 +166,16 @@
           {% if dest.tentativas > 1 %}<div class="row-sub">{{ dest.tentativas }} tentativas</div>{% endif %}</td>
       </tr>{% endfor %}</tbody>
     </table></div>
+  </section>
+  {% endif %}
+
+  {% if pode_reabrir or pode_cancelar %}
+  <section class="card card-pad acoes-volta" aria-labelledby="t-volta">
+    <div><h2 id="t-volta">Voltar atrás</h2><p class="muted small" style="margin:4px 0 0">{% if pode_reabrir %}Nenhum e-mail saiu ainda: dá para desfazer a confirmação, corrigir e confirmar de novo.{% else %}Já houve envio. Cancelar interrompe os e-mails restantes; os já aceitos ficam no histórico.{% endif %}</p></div>
+    <div class="actions">
+      {% if pode_reabrir %}<form class="inline-form" method="post" data-confirmar-acao="Desfazer a confirmação e voltar para rascunho? Os documentos são mantidos.">{% csrf_token %}<input type="hidden" name="acao" value="reabrir"><button type="submit" class="btn"><svg class="i"><use href="#i-voltar"/></svg>Voltar para rascunho</button></form>{% endif %}
+      {% if pode_cancelar %}<form class="inline-form" method="post" data-confirmar-acao="Cancelar esta preparação? Nenhum e-mail pendente será enviado; registros e arquivos ficam preservados.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="btn btn-danger">Cancelar preparação</button></form>{% endif %}
+    </div>
   </section>
   {% endif %}
 

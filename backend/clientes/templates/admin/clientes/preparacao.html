@@ -128,12 +128,16 @@
       </div>
       <p class="prep-dica">Confirmar registra destinatários e anexos deste momento. Nenhuma mensagem é enviada nesta etapa.</p>
     </form>
-    {% if pode_editar %}<form method="post" class="prep-cancelar" data-confirmar-acao="Cancelar esta preparação? Registros e arquivos serão preservados.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="prep-botao-perigo">Cancelar preparação</button></form>{% endif %}
+    {% if pode_cancelar %}<form method="post" class="prep-cancelar" data-confirmar-acao="Cancelar esta preparação? Registros e arquivos serão preservados.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="prep-botao-perigo">Cancelar preparação</button></form>{% endif %}
   </section>
 
   {% else %}
   <section class="prep-secao" aria-labelledby="s4">
     <h2 id="s4">{% if prep.status == 'confirmada' %}Registro confirmado{% else %}Preparação cancelada{% endif %}</h2>
+    {% if pode_reabrir or pode_cancelar %}<div class="prep-rodape" style="justify-content:flex-start;margin-bottom:12px">
+      {% if pode_reabrir %}<form method="post" data-confirmar-acao="Desfazer a confirmação e voltar para rascunho?">{% csrf_token %}<input type="hidden" name="acao" value="reabrir"><button type="submit" class="prep-botao-secundario">Voltar para rascunho</button></form>{% endif %}
+      {% if pode_cancelar %}<form method="post" data-confirmar-acao="Cancelar esta preparação? Nenhum e-mail pendente será enviado.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="prep-botao-perigo">Cancelar preparação</button></form>{% endif %}
+    </div>{% endif %}
     {% if prep.status == 'confirmada' %}<p class="prep-alerta prep-info">Este registro guarda os destinatários e anexos do momento da confirmação. {% if por_status.aceito %}{{ por_status.aceito }} de {{ confirmados|length }} e-mail(s) aceitos pelo servidor; aceitação não comprova entrega.{% else %}Nenhuma mensagem foi enviada ainda.{% endif %}</p>{% endif %}
     <p><strong>Assunto:</strong> {{ prep.assunto }}</p>
     <pre class="prep-mensagem">{{ prep.mensagem }}</pre>

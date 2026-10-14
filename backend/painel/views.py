@@ -82,9 +82,25 @@ def cliente(request, pk):
     for item in destinatarios.efetivos(obj.pk):
         efetivos.append(dict(item, categorias=[NOMES_CATEGORIAS[c] for c in item['categorias']],
                              origens=[ORIGENS[o] for o in item['origens']]))
+    from clientes.models import Responsabilidade
+    contatos = list(Contato.objects.filter(cliente=obj, data_fim__isnull=True).order_by('nome'))
+    endereco_ok = all([obj.logradouro, obj.numero, obj.bairro, obj.cidade, obj.estado, obj.cep])
+    # Completude do cadastro: o foco do sistema é uma base de clientes confiável.
+    completude = [
+        ('CNPJ atual', bool(obj.cnpj_atual)),
+        ('Endereço completo', endereco_ok),
+        ('Administradora definida', bool(vinculo)),
+        ('Contato com e-mail', any(c.email for c in contatos)),
+        ('Quem recebe documentos', bool(efetivos)),
+    ]
     ctx = dict(
-        secao='clientes', cliente=obj, vinculo=vinculo, efetivos=efetivos,
-        contatos=Contato.objects.filter(cliente=obj, data_fim__isnull=True).order_by('nome'),
+        secao='clientes', cliente=obj, vinculo=vinculo, efetivos=efetivos, contatos=contatos, completude=completude,
+        completos=sum(1 for _, ok in completude if ok),
+        contatos_encerrados=Contato.objects.filter(cliente=obj, data_fim__isnull=False).order_by('-data_fim'),
+        administradoras_anteriores=ClienteAdministradora.objects.select_related('administradora')
+        .filter(cliente=obj, data_fim__isnull=False).order_by('-data_fim'),
+        responsabilidades=Responsabilidade.objects.select_related('contato_administradora')
+        .filter(cliente=obj, data_fim__isnull=True).order_by('funcao'),
         cnpjs_anteriores=HistoricoCNPJ.objects.filter(cliente=obj, data_fim__isnull=False).order_by('-data_fim'),
         preparacoes=[(p, fluxo.situacao_envio(p)) for p in obj.preparacoes_envio.select_related('criada_por')[:10]]
         if request.user.has_perm('clientes.view_preparacaoenvio') else None,

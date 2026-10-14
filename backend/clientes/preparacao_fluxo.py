@@ -10,18 +10,20 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from . import preparacao as servico
 from .preparacao_models import PreparacaoEnvio, NOMES_CATEGORIAS
 
-ANCORAS = {'salvar_texto': '#revisao', 'confirmar': '#revisao', 'enviar': '#envio'}
+ANCORAS = {'salvar_texto': '#revisao', 'confirmar': '#revisao', 'enviar': '#envio', 'reabrir': '#revisao', 'cancelar': ''}
 
 
 def permissoes(user, prep):
     return dict(pode_editar=user.has_perm('clientes.add_preparacaoenvio') and prep.status == 'rascunho',
-                pode_confirmar=user.has_perm('clientes.confirmar_preparacaoenvio') and prep.status == 'rascunho')
+                pode_confirmar=user.has_perm('clientes.confirmar_preparacaoenvio') and prep.status == 'rascunho',
+                pode_cancelar=user.has_perm('clientes.add_preparacaoenvio') and servico.pode_cancelar(prep),
+                pode_reabrir=user.has_perm('clientes.confirmar_preparacaoenvio') and servico.pode_reabrir(prep))
 
 
 def processar(request, prep):
     """Executa a ação do POST. Retorna (erros, boletos, ancora); `ancora` preenchida indica redirecionar."""
     acao = request.POST.get('acao')
-    exigida = {'confirmar': 'confirmar_preparacaoenvio', 'enviar': 'enviar_preparacaoenvio'}.get(acao, 'add_preparacaoenvio')
+    exigida = {'confirmar': 'confirmar_preparacaoenvio', 'reabrir': 'confirmar_preparacaoenvio', 'enviar': 'enviar_preparacaoenvio'}.get(acao, 'add_preparacaoenvio')
     if not request.user.has_perm('clientes.' + exigida):
         raise PermissionDenied
     try:
@@ -97,8 +99,13 @@ def executar(request, prep, acao):
         if r['falhas']:
             raise ValidationError(f"{r['falhas']} envio(s) falharam; veja o motivo na tabela. Você pode tentar novamente.")
     elif acao == 'cancelar':
+        ja_enviados = prep.destinatarios.filter(status_envio='aceito').count()
         servico.cancelar(prep.pk)
-        messages.success(request, 'Preparação cancelada. Registros e arquivos preservados.')
+        messages.success(request, 'Preparação cancelada. Registros e arquivos preservados.' + (
+            f' {ja_enviados} e-mail(s) já aceito(s) não podem ser desfeitos e continuam no histórico.' if ja_enviados else ''))
+    elif acao == 'reabrir':
+        servico.reabrir(prep.pk)
+        messages.success(request, 'Confirmação desfeita: a preparação voltou para rascunho. Corrija e confirme de novo.')
     else:
         raise ValidationError('Ação inválida.')
 

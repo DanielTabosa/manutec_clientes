@@ -19,7 +19,7 @@
 - `.env` local: SMTP configurado (senha pelo usuário) e `DJANGO_CONTAAZUL_AMBIENTE=producao` (somente GET). `config/test_settings.py` isola os testes dessas integrações.
 - Lógica compartilhada entre admin e painel: `clientes/preparacao_fluxo.py` (preparação) e `clientes/destinatarios_fluxo.py` (destinatários). Cadastros do painel em `painel/cadastros.py`.
 - Design: tokens em `painel/static/painel/app.css` (direção D); fonte Inter em `painel/static/painel/fontes/`; tema do admin em `painel/static/painel/admin-tema.css` e `backend/templates/admin/base_site.html`.
-- Validação: 76 testes Django, 56 testes Conta Azul, 14 verificações PostgreSQL descartáveis, `backend/verificar_interface.cjs` e `backend/verificar_cadastros.cjs` (capturas em `.venv/qa/`).
+- Validação: 80 testes Django, 56 testes Conta Azul, 14 verificações PostgreSQL descartáveis, `backend/verificar_interface.cjs` e `backend/verificar_cadastros.cjs` (capturas em `.venv/qa/`).
 - Servidor local do usuário: aba de terminal "Servidor Manutec" com `manage.py runserver` (autoreload) em `http://127.0.0.1:8000/`.
 
 ## Ferramentas
@@ -32,5 +32,7 @@
 
 - A base de clientes é de teste; a base definitiva será preenchida depois. Não enviar e-mails reais a clientes em testes.
 - Categorias independentes. Contato sem e-mail não recebe e-mail. Bloqueio de reenvio com motivo e um envio por e-mail (aprovados).
+- Foco do sistema (usuário, 14/10): base de dados de clientes robusta; o envio é complemento. Ficha do cliente prioriza cadastro e contatos.
+- Voltar atrás (usuário, 14/10): voltar para rascunho se nenhum e-mail saiu; cancelar até a operação terminar (algum e-mail não aceito). Aceitos continuam contando para o bloqueio de reenvio.
 - Nunca pedir ou ler senhas no chat. Não ler credenciais em `.venv/contaazul`. Sem renovação automática de token. Preservar os backups `pre_0007` e `pre_0008`.
 - Git: main/origin com `git -c safe.directory=C:/dev/manutec-clientes`. Commit/push rotineiros autorizados.

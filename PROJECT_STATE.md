@@ -159,3 +159,10 @@ O usuário pediu crítica de design (`/design:design-critique`) e uma interface 
 - **Sem mudança de regra,** banco ou migration.
 
 Validação: 76 testes Django (novo: busca global com permissões), 56 Conta Azul, detector Impeccable sem apontamentos e `manage.py check` limpo. Playwright/Edge em banco descartável: `verificar_interface.cjs` e `verificar_cadastros.cjs` aprovados, mais capturas da janela visível (preparação no topo e rolada, painel de PDF, busca, admin, modo escuro, celular). O banco foi removido.
+
+### Ficha do cliente com foco no cadastro e regra de voltar atrás — 14/10/2026
+
+O usuário reforçou que o foco do sistema é uma **base de dados de clientes robusta**; o envio é um complemento. A ficha do cliente foi invertida: à esquerda, o cadastro completo (indicador de completude: CNPJ, endereço, administradora, contato com e-mail e destinatários; dados em duas colunas; CNPJs e administradoras anteriores; observações), os contatos do condomínio em tabela (função, e-mail, telefone, início e contatos encerrados no histórico) e os responsáveis na administradora. À direita, quem recebe documentos e o envio. "Editar cadastro" passou a ser a ação principal.
+
+Regra nova de voltar atrás (voltar para rascunho ou cancelar até o fim da operação) em [preparação do envio](docs/PREPARACAO_ENVIO_DOCUMENTOS.md). 80 testes Django aprovados e verificação no Edge (desktop e celular) em banco descartável.
+

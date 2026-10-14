@@ -81,6 +81,12 @@ class BasePreparacao(TransactionTestCase):
         return p.confirmar(prep.pk, impressao=p.plano(prep)['impressao'], assunto=prep.assunto, mensagem=prep.mensagem,
                            autor=self.user, motivo_reenvio=motivo)
 
+    def confirmada(self):
+        prep = self.nova(('boleto.pdf', 'boleto', 'b'), ('nota.pdf', 'nota_fiscal', 'n'))
+        self.confirmar(prep)
+        prep.refresh_from_db()
+        return prep
+
 
 class PreparacaoTests(BasePreparacao):
     def test_plano_categorias_independentes_sem_email_e_mesmo_email(self):
@@ -121,8 +127,7 @@ class PreparacaoTests(BasePreparacao):
         prep.refresh_from_db()
         self.assertEqual(prep.status, 'confirmada')
         self.assertEqual(sorted(prep.destinatarios.values_list('email', flat=True)), ['ana@exemplo.test', 'bruno@exemplo.test'])
-        for acao in (lambda: p.anexar(prep.pk, pdf('n.pdf', 'n'), 'nota_fiscal', '', self.user), lambda: p.cancelar(prep.pk),
-                     lambda: self.confirmar(prep)):
+        for acao in (lambda: p.anexar(prep.pk, pdf('n.pdf', 'n'), 'nota_fiscal', '', self.user), lambda: self.confirmar(prep)):
             with self.assertRaisesMessage(ValidationError, 'rascunho'):
                 acao()
 
@@ -373,3 +378,45 @@ class ContaAzulPreparacaoTests(BasePreparacao):
             self.assertContains(self.client.post(url, {'acao': 'listar_boletos', 'vencimento': ''}), 'data de vencimento')
             self.client.post(url, {'acao': 'boleto_parcela', 'parcela': self.CONTAS[1]['id']})
         self.assertEqual(prep.documentos.get().origem, 'contaazul')
+
+    def test_voltar_para_rascunho_antes_de_qualquer_envio(self):
+        prep = self.confirmada()
+        self.assertTrue(p.pode_reabrir(prep))
+        p.reabrir(prep.pk)
+        prep.refresh_from_db()
+        self.assertEqual((prep.status, prep.confirmada_em, prep.destinatarios.count()), ('rascunho', None, 0))
+        self.assertEqual(prep.documentos.count(), 2)
+        p.anexar(prep.pk, pdf('laudo.pdf', 'l'), 'laudo', '', self.user)
+        self.confirmar(prep)
+        prep.refresh_from_db()
+        self.assertEqual(prep.status, 'confirmada')
+        with self.assertRaisesMessage(ValidationError, 'Só uma preparação confirmada'):
+            p.reabrir(self.nova().pk)
+
+    @override_settings(**dict(SMTP_TESTE, EMAIL_BACKEND='clientes.test_preparacao.FalhaParaBruno'))
+    def test_cancelar_ate_o_fim_da_operacao(self):
+        prep = self.confirmada()
+        self.assertEqual(p.enviar(prep.pk, self.user)['falhas'], 1)
+        self.assertFalse(p.pode_reabrir(prep))
+        with self.assertRaisesMessage(ValidationError, 'Já houve envio'):
+            p.reabrir(prep.pk)
+        self.assertTrue(p.pode_cancelar(prep))
+        p.cancelar(prep.pk)
+        prep.refresh_from_db()
+        self.assertEqual(prep.status, 'cancelada')
+        with self.assertRaisesMessage(ValidationError, 'confirmadas'):
+            p.enviar(prep.pk, self.user)
+        with self.assertRaisesMessage(ValidationError, 'já está cancelada'):
+            p.cancelar(prep.pk)
+        # O que já foi aceito continua contando para o bloqueio de reenvio.
+        nova = self.nova(('boleto-de-novo.pdf', 'boleto', 'b'))
+        self.assertEqual(sorted(c['email'] for c in p.plano(nova)['conflitos']), ['ana@exemplo.test'])
+
+    @override_settings(**SMTP_TESTE)
+    def test_operacao_concluida_nao_cancela(self):
+        prep = self.confirmada()
+        p.enviar(prep.pk, self.user)
+        self.assertFalse(p.pode_cancelar(prep))
+        with self.assertRaisesMessage(ValidationError, 'operação terminou'):
+            p.cancelar(prep.pk)
+

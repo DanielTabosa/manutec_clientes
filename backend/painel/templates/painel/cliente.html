@@ -9,64 +9,80 @@
     <p class="lead">{% if cliente.nome_fantasia %}{{ cliente.nome_fantasia }} · {% endif %}<span class="num-data">{{ cliente.cnpj_atual|cnpj|default:"Sem CNPJ atual" }}</span></p>
   </div>
   <div class="actions">
-    {% if perms.clientes.change_cliente %}<a class="btn" href="{% url 'painel:cliente_editar' cliente.pk %}">Editar cadastro</a>{% endif %}
-    {% if perms.clientes.add_preparacaoenvio %}<form class="inline-form" method="post" action="{% url 'painel:nova_preparacao' %}">{% csrf_token %}<input type="hidden" name="cliente" value="{{ cliente.pk }}"><button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-send"/></svg>Preparar envio</button></form>{% endif %}
+    {% if perms.clientes.change_cliente %}<a class="btn btn-primary" href="{% url 'painel:cliente_editar' cliente.pk %}"><svg class="i"><use href="#i-file"/></svg>Editar cadastro</a>{% endif %}
+    {% if perms.clientes.add_preparacaoenvio %}<form class="inline-form" method="post" action="{% url 'painel:nova_preparacao' %}">{% csrf_token %}<input type="hidden" name="cliente" value="{{ cliente.pk }}"><button class="btn" type="submit"><svg class="i"><use href="#i-send"/></svg>Preparar envio</button></form>{% endif %}
   </div>
 </div>
 
 <div class="grid grid-3">
   <div class="stack">
-    <section class="card" aria-labelledby="t-dest">
-      <div class="card-head"><div><h2 id="t-dest">Quem recebe documentos</h2><p class="muted small">Destinatários efetivos hoje, com as categorias de cada um.</p></div>
-        {% if perms.clientes.view_configuracaodestinatarios %}<a class="btn btn-sm" href="{% url 'painel:cliente_destinatarios' cliente.pk %}">Configurar</a>{% endif %}</div>
-      {% if efetivos %}
-      <div class="table-wrap"><table class="table responsive">
-        <thead><tr><th>Contato</th><th>Categorias</th><th>Origem</th></tr></thead>
-        <tbody>{% for d in efetivos %}<tr>
-          <td data-label="Contato"><strong>{{ d.nome }}</strong><div class="row-sub wrap-any">{% if d.email %}{{ d.email }}{% else %}<span class="chip chip-error">Sem e-mail</span>{% endif %}</div></td>
-          <td data-label="Categorias"><div class="chips">{% for c in d.categorias %}<span class="chip chip-info">{{ c }}</span>{% endfor %}</div></td>
-          <td data-label="Origem" class="small muted">{{ d.origens|join:", " }}</td>
-        </tr>{% endfor %}</tbody>
-      </table></div>
-      {% else %}<div class="empty"><strong>Nenhum destinatário configurado</strong>Sem destinatários, nenhum documento pode ser enviado a este cliente.</div>{% endif %}
+    <section class="card" aria-labelledby="t-dados">
+      <div class="card-head"><div><h2 id="t-dados">Cadastro</h2><p class="muted small">Cadastrado em {{ cliente.criado_em|date:"d/m/Y" }} · atualizado em {{ cliente.atualizado_em|date:"d/m/Y H:i" }}</p></div>
+        {% if perms.clientes.change_cliente %}<span class="actions"><a class="btn btn-sm" href="{% url 'painel:cliente_cnpj' cliente.pk %}">Trocar CNPJ</a>{% if perms.clientes.view_administradora %}<a class="btn btn-sm" href="{% url 'painel:cliente_administradora' cliente.pk %}">Administradora</a>{% endif %}<a class="btn btn-sm" href="{% url 'painel:cliente_editar' cliente.pk %}">Editar</a></span>{% endif %}</div>
+      <div class="card-body">
+        <div class="completude" aria-label="Completude do cadastro">
+          <div class="completude-topo"><strong>Cadastro {{ completos }}/{{ completude|length }}</strong><span class="barra-prog" role="img" aria-label="{{ completos }} de {{ completude|length }} itens completos"><span style="width:{% widthratio completos completude|length 100 %}%"></span></span></div>
+          <ul class="chips">{% for nome, ok in completude %}<li class="chip {% if ok %}chip-ok{% else %}chip-warn{% endif %}"><svg class="i" style="width:14px;height:14px" aria-hidden="true"><use href="#i-{% if ok %}check{% else %}alert{% endif %}"/></svg>{{ nome }}</li>{% endfor %}</ul>
+        </div>
+        <dl class="dl-2">
+          <div><dt>Razão social</dt><dd>{{ cliente.razao_social }}</dd></div>
+          <div><dt>Nome fantasia</dt><dd>{{ cliente.nome_fantasia|default:"—" }}</dd></div>
+          <div><dt>CNPJ atual</dt><dd class="num-data">{{ cliente.cnpj_atual|cnpj|default:"—" }}</dd></div>
+          <div><dt>Administradora</dt><dd>{% if vinculo %}{% if perms.clientes.view_administradora %}<a href="{% url 'painel:administradora' vinculo.administradora_id %}">{{ vinculo.administradora }}</a>{% else %}{{ vinculo.administradora }}{% endif %}<div class="muted small">desde {{ vinculo.data_inicio|date:"d/m/Y" }}</div>{% else %}Sem administradora{% endif %}</dd></div>
+          <div class="dl-largo"><dt>Endereço</dt><dd>{% if cliente.logradouro %}{{ cliente.logradouro }}{% if cliente.numero %}, {{ cliente.numero }}{% endif %}{% if cliente.complemento %} — {{ cliente.complemento }}{% endif %}<br>{{ cliente.bairro|default:"" }}{% if cliente.cidade %} · {{ cliente.cidade }}/{{ cliente.estado }}{% endif %}{% if cliente.cep %} · CEP {{ cliente.cep|slice:":5" }}-{{ cliente.cep|slice:"5:" }}{% endif %}{% else %}—{% endif %}</dd></div>
+          {% if cliente.observacoes %}<div class="dl-largo"><dt>Observações</dt><dd>{{ cliente.observacoes|linebreaksbr }}</dd></div>{% endif %}
+          {% if cnpjs_anteriores %}<div><dt>CNPJs anteriores</dt><dd class="num-data">{% for h in cnpjs_anteriores %}{{ h.cnpj|cnpj }}<span class="muted small"> até {{ h.data_fim|date:"d/m/Y" }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd></div>{% endif %}
+          {% if administradoras_anteriores %}<div><dt>Administradoras anteriores</dt><dd>{% for v in administradoras_anteriores %}{{ v.administradora }}<span class="muted small"> {{ v.data_inicio|date:"d/m/Y" }} a {{ v.data_fim|date:"d/m/Y" }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd></div>{% endif %}
+        </dl>
+      </div>
     </section>
 
-    {% if preparacoes is not None %}
-    <section class="card" aria-labelledby="t-prep">
-      <div class="card-head"><h2 id="t-prep">Preparações de envio</h2>{% if preparacoes %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}?q={{ cliente.razao_social|urlencode }}">Ver todas<svg class="i"><use href="#i-arrow"/></svg></a>{% endif %}</div>
-      {% if preparacoes %}
+    <section class="card" aria-labelledby="t-contatos">
+      <div class="card-head"><div><h2 id="t-contatos">Contatos do condomínio <span class="count">{{ contatos|length }}</span></h2><p class="muted small">Pessoas ligadas diretamente ao condomínio: síndico, conselho, zelador.</p></div>{% if perms.clientes.add_contato %}<a class="btn btn-sm btn-primary" href="{% url 'painel:contato_novo' cliente.pk %}"><svg class="i"><use href="#i-plus"/></svg>Novo contato</a>{% endif %}</div>
+      {% if contatos %}
       <div class="table-wrap"><table class="table responsive">
-        <thead><tr><th>Preparação</th><th>Situação</th><th>Envio</th><th>Criada</th></tr></thead>
-        <tbody>{% for p, envio in preparacoes %}<tr>
-          <td data-label="Preparação"><a class="row-link" href="{% url 'painel:preparacao' p.pk %}">Preparação {{ p.pk }}</a></td>
-          <td data-label="Situação">{% include "painel/_status.html" with status=p.status rotulo=p.get_status_display %}</td>
-          <td data-label="Envio">{{ envio|default:"—" }}</td>
-          <td data-label="Criada">{{ p.criada_em|date:"d/m/Y H:i" }}</td>
+        <thead><tr><th>Nome</th><th>Função</th><th>E-mail</th><th>Telefone</th><th>Desde</th><th><span class="sr">Ações</span></th></tr></thead>
+        <tbody>{% for c in contatos %}<tr data-contato>
+          <td data-label="Nome"><strong>{{ c.nome }}</strong></td>
+          <td data-label="Função">{{ c.funcao|default:"—" }}</td>
+          <td data-label="E-mail" class="wrap-any">{% if c.email %}{{ c.email }}{% else %}<span class="chip chip-warn">Sem e-mail</span>{% endif %}</td>
+          <td data-label="Telefone" class="num-data">{{ c.telefone|default:"—" }}</td>
+          <td data-label="Desde" class="num-data">{{ c.data_inicio|date:"d/m/Y" }}</td>
+          <td class="acoes">{% if perms.clientes.change_contato %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:contato_editar' c.pk %}" aria-label="Editar {{ c.nome }}">Editar</a>{% endif %}</td>
         </tr>{% endfor %}</tbody>
       </table></div>
-      {% else %}<div class="empty"><strong>Nenhuma preparação para este cliente</strong>Use “Preparar envio” para anexar boletos e notas.</div>{% endif %}
+      {% else %}<div class="empty"><strong>Nenhum contato vigente</strong>Cadastre o síndico e quem cuida do financeiro do condomínio.</div>{% endif %}
+      {% if contatos_encerrados %}<details class="hist" style="border-top:1px solid var(--border)"><summary><span class="worklist-main"><strong>Contatos encerrados ({{ contatos_encerrados|length }})</strong><span class="row-sub">Histórico preservado</span></span></summary>
+        <ul class="doc-list" style="padding:0 20px 14px">{% for c in contatos_encerrados %}<li><strong>{{ c.nome }}</strong><span class="muted small">{{ c.funcao|default:"" }} · {{ c.data_inicio|date:"d/m/Y" }} a {{ c.data_fim|date:"d/m/Y" }}{% if c.email %} · {{ c.email }}{% endif %}</span>{% if perms.clientes.change_contato %}<a class="small" href="{% url 'painel:contato_editar' c.pk %}">Editar</a>{% endif %}</li>{% endfor %}</ul></details>{% endif %}
+    </section>
+
+    {% if responsabilidades %}
+    <section class="card" aria-labelledby="t-resp">
+      <div class="card-head"><div><h2 id="t-resp">Responsáveis na administradora <span class="count">{{ responsabilidades|length }}</span></h2><p class="muted small">Contatos da administradora com função neste condomínio.</p></div></div>
+      <ul class="worklist">{% for r in responsabilidades %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ r.contato_administradora.nome }}</strong><span class="row-sub wrap-any">{{ r.funcao }} · desde {{ r.data_inicio|date:"d/m/Y" }}{% if r.contato_administradora.email %} · {{ r.contato_administradora.email }}{% endif %}</span></span></div></li>{% endfor %}</ul>
     </section>
     {% endif %}
   </div>
 
   <div class="stack">
-    <section class="card card-pad" aria-labelledby="t-dados">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px"><h2 id="t-dados">Cadastro</h2>{% if perms.clientes.change_cliente %}<span class="actions"><a class="btn btn-sm" href="{% url 'painel:cliente_cnpj' cliente.pk %}">Trocar CNPJ</a>{% if perms.clientes.view_administradora %}<a class="btn btn-sm" href="{% url 'painel:cliente_administradora' cliente.pk %}">Administradora</a>{% endif %}</span>{% endif %}</div>
-      <dl class="dl">
-        <dt>CNPJ atual</dt><dd class="num-data">{{ cliente.cnpj_atual|cnpj|default:"—" }}</dd>
-        {% if cnpjs_anteriores %}<dt>CNPJs anteriores</dt><dd class="num-data">{% for h in cnpjs_anteriores %}{{ h.cnpj|cnpj }}<span class="muted small"> até {{ h.data_fim|date:"d/m/Y" }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
-        <dt>Endereço</dt><dd>{% if cliente.logradouro %}{{ cliente.logradouro }}{% if cliente.numero %}, {{ cliente.numero }}{% endif %}{% if cliente.complemento %} — {{ cliente.complemento }}{% endif %}<br>{{ cliente.bairro|default:"" }}{% if cliente.cidade %} · {{ cliente.cidade }}/{{ cliente.estado }}{% endif %}{% if cliente.cep %} · CEP {{ cliente.cep|slice:":5" }}-{{ cliente.cep|slice:"5:" }}{% endif %}{% else %}—{% endif %}</dd>
-        <dt>Administradora</dt><dd>{% if vinculo %}{% if perms.clientes.view_administradora %}<a href="{% url 'painel:administradora' vinculo.administradora_id %}">{{ vinculo.administradora }}</a>{% else %}{{ vinculo.administradora }}{% endif %}<div class="muted small">desde {{ vinculo.data_inicio|date:"d/m/Y" }}</div>{% else %}Sem administradora{% endif %}</dd>
-        {% if cliente.observacoes %}<dt>Observações</dt><dd>{{ cliente.observacoes|linebreaksbr }}</dd>{% endif %}
-      </dl>
+    <section class="card" aria-labelledby="t-dest">
+      <div class="card-head"><div><h2 id="t-dest">Quem recebe documentos</h2><p class="muted small">Destinatários efetivos e suas categorias.</p></div>
+        {% if perms.clientes.view_configuracaodestinatarios %}<a class="btn btn-sm" href="{% url 'painel:cliente_destinatarios' cliente.pk %}">Configurar</a>{% endif %}</div>
+      {% if efetivos %}
+      <ul class="worklist">{% for d in efetivos %}<li><div class="worklist-row worklist-col">
+        <span class="worklist-main"><strong>{{ d.nome }}</strong><span class="row-sub wrap-any">{% if d.email %}{{ d.email }}{% else %}<span class="chip chip-error">Sem e-mail</span>{% endif %} · {{ d.origens|join:", " }}</span></span>
+        <span class="chips">{% for c in d.categorias %}<span class="chip chip-info">{{ c }}</span>{% endfor %}</span></div></li>{% endfor %}</ul>
+      {% else %}<div class="empty"><strong>Nenhum destinatário</strong>Sem destinatários, nenhum documento pode ser enviado.</div>{% endif %}
     </section>
 
-    <section class="card" aria-labelledby="t-contatos">
-      <div class="card-head"><h2 id="t-contatos">Contatos do condomínio <span class="count">{{ contatos|length }}</span></h2>{% if perms.clientes.add_contato %}<a class="btn btn-sm" href="{% url 'painel:contato_novo' cliente.pk %}"><svg class="i"><use href="#i-plus"/></svg>Novo contato</a>{% endif %}</div>
-      {% if contatos %}
-      <ul class="worklist">{% for c in contatos %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ c.nome }}{% if c.funcao %} <span class="muted small" style="font-weight:400">· {{ c.funcao }}</span>{% endif %}</strong><span class="row-sub wrap-any">{{ c.email|default:"Sem e-mail" }}{% if c.telefone %} · {{ c.telefone }}{% endif %}</span></span>{% if perms.clientes.change_contato %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:contato_editar' c.pk %}" aria-label="Editar {{ c.nome }}">Editar</a>{% endif %}</div></li>{% endfor %}</ul>
-      {% else %}<div class="empty">Nenhum contato direto vigente.</div>{% endif %}
+    {% if preparacoes is not None %}
+    <section class="card" aria-labelledby="t-prep">
+      <div class="card-head"><h2 id="t-prep">Envio de documentos</h2>{% if preparacoes %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}?q={{ cliente.razao_social|urlencode }}">Ver todas<svg class="i"><use href="#i-arrow"/></svg></a>{% endif %}</div>
+      {% if preparacoes %}
+      <ul class="worklist">{% for p, envio in preparacoes %}<li><a href="{% url 'painel:preparacao' p.pk %}"><span class="worklist-main"><strong>Preparação {{ p.pk }}</strong><span class="row-sub">{{ p.criada_em|date:"d/m/Y H:i" }}{% if envio %} · {{ envio }}{% endif %}</span></span>{% include "painel/_status.html" with status=p.status rotulo=p.get_status_display %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
+      {% else %}<div class="empty"><strong>Nenhuma preparação</strong>Use “Preparar envio” para anexar boletos e notas.</div>{% endif %}
     </section>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -4,6 +4,7 @@ import json
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from . import destinatarios
@@ -116,8 +117,8 @@ def plano(prep):
     conflitos = []
     for g in envios:
         for d in g['documentos']:
-            anterior = (ItemPreparacao.objects.filter(destinatario__email=g['email'], documento__sha256=d.sha256,
-                                                       destinatario__preparacao__status='confirmada')
+            anterior = (ItemPreparacao.objects.filter(Q(destinatario__preparacao__status='confirmada') | Q(destinatario__status_envio='aceito'),
+                                                       destinatario__email=g['email'], documento__sha256=d.sha256)
                         .exclude(destinatario__preparacao=prep)
                         .select_related('destinatario__preparacao').order_by('-destinatario__preparacao__confirmada_em').first())
             if anterior:
@@ -159,10 +160,42 @@ def confirmar(preparacao_id, *, impressao, assunto, mensagem, autor, motivo_reen
 
 
 @transaction.atomic
+def pode_cancelar(prep):
+    """Cancelável até o fim da operação: rascunho, ou confirmada com algum e-mail ainda não aceito."""
+    if prep.status == 'rascunho':
+        return True
+    return prep.status == 'confirmada' and prep.destinatarios.exclude(status_envio='aceito').exists()
+
+
+def pode_reabrir(prep):
+    """Volta para rascunho só se nenhum e-mail saiu (nem aceito nem em envio)."""
+    return prep.status == 'confirmada' and not prep.destinatarios.filter(status_envio__in=['aceito', 'enviando']).exists()
+
+
+@transaction.atomic
 def cancelar(preparacao_id):
-    prep = _rascunho(preparacao_id)
+    prep = PreparacaoEnvio.objects.select_for_update().get(pk=preparacao_id)
+    if prep.status == 'cancelada':
+        raise ValidationError('Esta preparação já está cancelada.')
+    if not pode_cancelar(prep):
+        raise ValidationError('Todos os e-mails já foram aceitos pelo servidor: a operação terminou e não pode mais ser cancelada.')
     prep.status, prep.cancelada_em = 'cancelada', timezone.now()
     prep.save(update_fields=['status', 'cancelada_em'])
+    return prep
+
+
+@transaction.atomic
+def reabrir(preparacao_id):
+    """Desfaz a confirmação: apaga o retrato (destinatários/itens) e volta ao rascunho; documentos preservados."""
+    prep = PreparacaoEnvio.objects.select_for_update().get(pk=preparacao_id)
+    if prep.status != 'confirmada':
+        raise ValidationError('Só uma preparação confirmada pode voltar para rascunho.')
+    if not pode_reabrir(prep):
+        raise ValidationError('Já houve envio de e-mail nesta preparação; não dá para voltar ao rascunho. Use Cancelar para interromper o restante.')
+    ItemPreparacao.objects.filter(destinatario__preparacao=prep).delete()
+    prep.destinatarios.all().delete()
+    prep.status, prep.confirmada_em, prep.confirmada_por, prep.motivo_reenvio = 'rascunho', None, None, ''
+    prep.save(update_fields=['status', 'confirmada_em', 'confirmada_por', 'motivo_reenvio'])
     return prep
 
 

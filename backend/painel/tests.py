@@ -194,3 +194,27 @@ class BuscaTests(BasePreparacao):
         pagina = self.client.get(url, {'q': 'QA'}).content.decode()
         self.assertIn('Condomínio QA', pagina)
         self.assertNotIn('Empresa QA', pagina)
+
+
+class VoltarAtrasTests(BasePreparacao):
+    def test_botoes_de_voltar_e_cancelar_pela_interface(self):
+        self.client.force_login(self.user)
+        prep = self.confirmada()
+        url = reverse('painel:preparacao', args=[prep.pk])
+        pagina = self.client.get(url).content.decode()
+        self.assertIn('Voltar para rascunho', pagina)
+        self.assertIn('Cancelar preparação', pagina)
+        self.client.post(url, {'acao': 'reabrir'})
+        prep.refresh_from_db()
+        self.assertEqual(prep.status, 'rascunho')
+        self.confirmar(prep)
+        self.client.post(url, {'acao': 'cancelar'})
+        prep.refresh_from_db()
+        self.assertEqual(prep.status, 'cancelada')
+        pagina = self.client.get(url).content.decode()
+        self.assertNotIn('Voltar para rascunho', pagina)
+        operador = User.objects.create_user('so_edita', password='somente-teste')
+        operador.user_permissions.add(*Permission.objects.filter(codename__in=['view_preparacaoenvio', 'add_preparacaoenvio']))
+        self.client.force_login(operador)
+        outra = self.confirmada()
+        self.assertEqual(self.client.post(reverse('painel:preparacao', args=[outra.pk]), {'acao': 'reabrir'}).status_code, 403)

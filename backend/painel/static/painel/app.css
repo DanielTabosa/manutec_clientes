@@ -283,6 +283,20 @@ input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
 .doc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .doc-list li { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
 .inline-form { display: inline; margin: 0; }
+.dl-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); margin: 0; font-size: 14px; }
+.dl-2 > div { display: grid; gap: 2px; align-content: start; }
+.dl-2 dt { font-size: 12.5px; color: var(--text-3); font-weight: 600; }
+.dl-2 dd { margin: 0; overflow-wrap: anywhere; }
+.dl-largo { grid-column: 1 / -1; }
+.completude { display: grid; gap: var(--s-2); padding: var(--s-3) var(--s-4); margin-bottom: var(--s-5); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); }
+.completude .chips { list-style: none; margin: 0; padding: 0; }
+.completude-topo { display: flex; align-items: center; gap: var(--s-3); }
+.completude-topo strong { font-size: 13.5px; white-space: nowrap; }
+.barra-prog { flex: 1; height: 6px; border-radius: var(--r-full); background: var(--surface-sunken); overflow: hidden; }
+.barra-prog > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--azul-400)); transition: width .4s var(--ease); }
+.worklist-row.worklist-col { flex-direction: column; align-items: flex-start; gap: 6px; }
+.worklist-col .worklist-main { width: 100%; }
+.acoes-volta { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
 
 /* Lista de trabalho */
 .worklist { list-style: none; margin: 0; padding: 0; }
@@ -361,6 +375,7 @@ dialog.gaveta::backdrop { background: rgba(7, 26, 61, .45); backdrop-filter: blu
   .card-head, .toolbar, .pager, .worklist a, .worklist-row, details.hist summary { padding-left: var(--s-4); padding-right: var(--s-4); }
   .worklist a { flex-wrap: wrap; }
   .dl { grid-template-columns: 1fr; gap: 2px var(--s-4); }
+  .dl-2 { grid-template-columns: 1fr; gap: var(--s-3); }
   .dl dd { margin-bottom: var(--s-2); }
   .table.responsive thead { display: none; }
   .table.responsive, .table.responsive tbody, .table.responsive tr, .table.responsive td { display: block; width: 100%; }
