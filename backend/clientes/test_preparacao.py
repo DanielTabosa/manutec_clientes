@@ -7,12 +7,30 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase, override_settings
+from django.core import mail
+from django.core.mail.backends.locmem import EmailBackend as LocmemBackend
 from django.urls import reverse
 
 from . import destinatarios as d
 from . import preparacao as p
 from .models import (Administradora, Cliente, ClienteAdministradora, Contato, ContatoAdministradora,
                      HistoricoCNPJ, Responsabilidade, DocumentoPreparacao, PreparacaoEnvio, ItemPreparacao)
+
+
+class FalhaParaBruno(LocmemBackend):
+    def send_messages(self, messages):
+        if any('bruno' in m.to[0] for m in messages):
+            raise OSError('550 caixa indisponível')
+        return super().send_messages(messages)
+
+
+class ConexaoRecusada(LocmemBackend):
+    def open(self):
+        raise OSError('autenticação recusada')
+
+
+SMTP_TESTE = dict(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', EMAIL_HOST='smtp.exemplo.test',
+                  DEFAULT_FROM_EMAIL='Manutec <envio@exemplo.test>', EMAIL_REPLY_TO='')
 
 
 def pdf(nome, conteudo='a'):
@@ -159,3 +177,75 @@ class PreparacaoTests(TransactionTestCase):
         leitor = User.objects.create_user('leitor', password='somente-teste', is_staff=True)
         self.client.force_login(leitor)
         self.assertEqual(self.client.get(url).status_code, 403)
+
+    def confirmada(self):
+        prep = self.nova(('boleto.pdf', 'boleto', 'b'), ('nota.pdf', 'nota_fiscal', 'n'))
+        self.confirmar(prep)
+        return prep
+
+    def status(self, prep):
+        return dict(prep.destinatarios.values_list('email', 'status_envio'))
+
+    @override_settings(**SMTP_TESTE)
+    def test_envio_anexos_por_destinatario_e_sem_duplicidade(self):
+        rascunho = self.nova(('x.pdf', 'boleto', 'x'))
+        with self.assertRaisesMessage(ValidationError, 'confirmadas'):
+            p.enviar(rascunho.pk, self.user)
+        prep = self.confirmada()
+        self.assertEqual(p.enviar(prep.pk, self.user), dict(aceitos=3, falhas=0))
+        anexos = {m.to[0]: sorted(a[0] for a in m.attachments) for m in mail.outbox}
+        self.assertEqual(anexos, {'ana@exemplo.test': ['boleto.pdf', 'nota.pdf'], 'bruno@exemplo.test': ['boleto.pdf'],
+                                  'carla@exemplo.test': ['nota.pdf']})
+        self.assertTrue(all(m.subject == prep.assunto and m.from_email == 'Manutec <envio@exemplo.test>' for m in mail.outbox))
+        self.assertTrue(all(m.attachments[0][1].startswith(b'%PDF-') for m in mail.outbox))
+        self.assertEqual(set(self.status(prep).values()), {'aceito'})
+        self.assertTrue(all(prep.destinatarios.values_list('message_id', flat=True)))
+        with self.assertRaisesMessage(ValidationError, 'Nenhum destinatário pendente'):
+            p.enviar(prep.pk, self.user)
+        self.assertEqual(len(mail.outbox), 3)
+
+    @override_settings(**dict(SMTP_TESTE, EMAIL_BACKEND='clientes.test_preparacao.FalhaParaBruno'))
+    def test_falha_parcial_e_nova_tentativa_somente_da_falha(self):
+        prep = self.confirmada()
+        self.assertEqual(p.enviar(prep.pk, self.user), dict(aceitos=2, falhas=1))
+        self.assertEqual(self.status(prep)['bruno@exemplo.test'], 'falha')
+        self.assertIn('550', prep.destinatarios.get(email='bruno@exemplo.test').ultimo_erro)
+        with override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            mail.outbox = []
+            self.assertEqual(p.enviar(prep.pk, self.user), dict(aceitos=1, falhas=0))
+            self.assertEqual([m.to[0] for m in mail.outbox], ['bruno@exemplo.test'])
+        self.assertEqual(prep.destinatarios.get(email='bruno@exemplo.test').tentativas, 2)
+
+    @override_settings(**dict(SMTP_TESTE, EMAIL_BACKEND='clientes.test_preparacao.ConexaoRecusada'))
+    def test_conexao_recusada_marca_falha_sem_enviar(self):
+        prep = self.confirmada()
+        self.assertEqual(p.enviar(prep.pk, self.user), dict(aceitos=0, falhas=3))
+        self.assertIn('autenticação recusada', prep.destinatarios.first().ultimo_erro)
+
+    @override_settings(**SMTP_TESTE)
+    def test_indeterminado_so_com_confirmacao_explicita(self):
+        prep = self.confirmada()
+        prep.destinatarios.update(status_envio='enviando')
+        with self.assertRaisesMessage(ValidationError, 'Nenhum destinatário pendente'):
+            p.enviar(prep.pk, self.user)
+        self.assertEqual(p.enviar(prep.pk, self.user, incluir_indeterminados=True)['aceitos'], 3)
+
+    def test_envio_sem_configuracao_e_permissao_no_painel(self):
+        prep = self.confirmada()
+        with override_settings(EMAIL_HOST='', DEFAULT_FROM_EMAIL=''):
+            with self.assertRaisesMessage(ValidationError, 'não configurado'):
+                p.enviar(prep.pk, self.user)
+            self.client.force_login(self.user)
+            self.assertContains(self.client.get(reverse('admin:clientes_preparacaoenvio_change', args=[prep.pk])), 'ainda não configurado')
+        operador = User.objects.create_user('op2', password='somente-teste', is_staff=True)
+        operador.user_permissions.add(*Permission.objects.filter(codename__in=['view_preparacaoenvio', 'add_preparacaoenvio', 'confirmar_preparacaoenvio']))
+        self.client.force_login(operador)
+        url = reverse('admin:clientes_preparacaoenvio_change', args=[prep.pk])
+        self.assertEqual(self.client.post(url, {'acao': 'enviar'}).status_code, 403)
+        with override_settings(**SMTP_TESTE):
+            self.client.force_login(self.user)
+            self.client.post(url, {'acao': 'enviar'})
+            self.assertEqual(len(mail.outbox), 3)
+            pagina = self.client.get(url).content.decode()
+            self.assertIn('Aceito pelo servidor', pagina)
+            self.assertNotIn('Enviar e-mails (', pagina)

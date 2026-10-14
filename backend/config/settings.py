@@ -61,6 +61,19 @@ USE_I18N = True
 STATIC_URL = "static/"
 # PDFs de preparações: fora do Git e sem URL pública; servidos só pelo painel autenticado.
 ARQUIVOS_PRIVADOS_DIR = Path(os.getenv("DJANGO_ARQUIVOS_PRIVADOS", BASE_DIR / "privado"))
+# Envio de documentos: conta do domínio (cPanel). Sem host/remetente, o envio fica desabilitado no painel.
+EMAIL_BACKEND = os.getenv("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", "465"))
+EMAIL_USE_SSL = os.getenv("DJANGO_EMAIL_USE_SSL", "True").lower() == "true"
+EMAIL_USE_TLS = os.getenv("DJANGO_EMAIL_USE_TLS", "False").lower() == "true"
+if EMAIL_USE_SSL and EMAIL_USE_TLS:
+    raise ImproperlyConfigured("Use DJANGO_EMAIL_USE_SSL (porta 465) ou DJANGO_EMAIL_USE_TLS (porta 587), não ambos.")
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_PASSWORD", "")
+EMAIL_TIMEOUT = 30
+DEFAULT_FROM_EMAIL = os.getenv("DJANGO_EMAIL_FROM", "")
+EMAIL_REPLY_TO = os.getenv("DJANGO_EMAIL_REPLY_TO", "")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],

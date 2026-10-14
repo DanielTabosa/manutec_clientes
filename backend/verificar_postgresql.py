@@ -335,6 +335,27 @@ def worker():
                 self.assertCountEqual(resultados,['confirmada','rejeitada'])
                 self.assertEqual(PreparacaoEnvio.objects.filter(cliente=self.c,status='confirmada').count(),1)
 
+        def test_preparacao_envios_concorrentes_sem_duplicidade(self):
+            import tempfile
+            from django.core import mail
+            from clientes import preparacao as prep
+            smtp=dict(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',EMAIL_HOST='smtp.exemplo.test',DEFAULT_FROM_EMAIL='envio@exemplo.test')
+            with tempfile.TemporaryDirectory() as pasta, override_settings(ARQUIVOS_PRIVADOS_DIR=pasta,**smtp):
+                item=self.preparar('envio')
+                prep.confirmar(item.pk,impressao=prep.plano(item)['impressao'],assunto='A',mensagem='M',autor=None)
+                mail.outbox=[];barrier=Barrier(2)
+                def enviar():
+                    try:
+                        barrier.wait(timeout=5)
+                        return prep.enviar(item.pk,None)['aceitos']
+                    except ValidationError: return 'rejeitado'
+                    finally: connections.close_all()
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    resultados=[f.result(timeout=15) for f in [pool.submit(enviar) for _ in range(2)]]
+                self.assertCountEqual(resultados,[1,'rejeitado'])
+                self.assertEqual(len(mail.outbox),1)
+                self.assertEqual(item.destinatarios.get().status_envio,'aceito')
+
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Validacao))
     if not result.wasSuccessful(): sys.exit(1)
     # Usuário fictício apenas no banco descartável, para inspeção visual local.
@@ -346,7 +367,7 @@ def worker():
             logradouro='Rua QA', numero='1', bairro='Centro', cidade='Fortaleza',
             estado='CE', cep='60000000', data_inicio=date(2020, 1, 1))
         alterar_administradora(c.pk, acao='vincular', administradora=a, data=date(2020, 1, 1))
-    print('PostgreSQL: 13 verificações aprovadas; schema e migrations instalados apenas no banco descartável.',flush=True)
+    print('PostgreSQL: 14 verificações aprovadas; schema e migrations instalados apenas no banco descartável.',flush=True)
 
 
 if __name__=='__main__': main()

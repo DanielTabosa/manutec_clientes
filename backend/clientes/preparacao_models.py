@@ -8,6 +8,7 @@ from django.db import models
 from .destinatarios_models import CATEGORIAS
 
 STATUS = [('rascunho', 'Rascunho'), ('confirmada', 'Confirmada'), ('cancelada', 'Cancelada')]
+STATUS_ENVIO = [('pendente', 'Pendente'), ('enviando', 'Indeterminado'), ('aceito', 'Aceito pelo servidor'), ('falha', 'Falha')]
 NOMES_CATEGORIAS = dict(boleto='Boleto', nota_fiscal='Nota fiscal', laudo='Laudo', comunicado='Comunicado', cobranca='Cobrança')
 
 
@@ -48,7 +49,8 @@ class PreparacaoEnvio(models.Model):
     class Meta:
         ordering = ['-criada_em', '-id']
         default_permissions = ('view', 'add')
-        permissions = [('confirmar_preparacaoenvio', 'Pode confirmar preparação de envio')]
+        permissions = [('confirmar_preparacaoenvio', 'Pode confirmar preparação de envio'),
+                       ('enviar_preparacaoenvio', 'Pode enviar e-mails de preparação confirmada')]
         verbose_name = 'preparação de envio'
         verbose_name_plural = 'preparações de envio'
         constraints = [
@@ -87,11 +89,21 @@ class DestinatarioPreparacao(models.Model):
     preparacao = models.ForeignKey(PreparacaoEnvio, on_delete=models.PROTECT, related_name='destinatarios')
     email = models.CharField(max_length=254)
     nomes = models.CharField(max_length=500)
+    # 'enviando' sem conclusão = resultado indeterminado; não é repetido automaticamente.
+    status_envio = models.CharField(max_length=10, choices=STATUS_ENVIO, default='pendente')
+    tentativas = models.PositiveIntegerField(default=0)
+    ultima_tentativa_em = models.DateTimeField(null=True, blank=True)
+    ultima_tentativa_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    aceito_em = models.DateTimeField(null=True, blank=True)
+    message_id = models.CharField(max_length=250, blank=True)
+    ultimo_erro = models.CharField(max_length=300, blank=True)
 
     class Meta:
         ordering = ['email']
         default_permissions = ()
-        constraints = [models.UniqueConstraint(fields=['preparacao', 'email'], name='prep_email_unico')]
+        constraints = [models.UniqueConstraint(fields=['preparacao', 'email'], name='prep_email_unico'),
+                       models.CheckConstraint(condition=models.Q(status_envio__in=['pendente', 'enviando', 'aceito', 'falha']), name='prep_status_envio_valido'),
+                       models.CheckConstraint(condition=~models.Q(status_envio='aceito') | models.Q(aceito_em__isnull=False), name='prep_aceite_datado')]
 
 
 class ItemPreparacao(models.Model):

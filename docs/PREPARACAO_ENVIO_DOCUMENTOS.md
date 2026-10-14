@@ -2,13 +2,25 @@
 
 Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado diretamente pela API pública. Integração ao painel, anexos e envio ainda não implementados. Evidências anteriores estão preservadas abaixo como contexto datado.
 
+## Envio por e-mail (SMTP) — 14/10/2026
+
+Etapa 2 do plano, aprovada pelo usuário em 14/10/2026, que também aprovou as regras da etapa 1: bloqueio de reenvio com motivo e um envio por e-mail. Implementado e validado com servidor simulado; **falta o teste real com a conta do cPanel**.
+
+- **Configuração** no `backend/.env` (modelo em `.env.example`): `DJANGO_EMAIL_HOST`, `DJANGO_EMAIL_PORT` (465 SSL ou 587 TLS, nunca ambos), `DJANGO_EMAIL_USE_SSL`/`USE_TLS`, `DJANGO_EMAIL_USER`, `DJANGO_EMAIL_PASSWORD`, `DJANGO_EMAIL_FROM` e `DJANGO_EMAIL_REPLY_TO` (opcional). Sem host ou remetente, o painel informa que o envio não está configurado. A senha é preenchida pelo usuário, nunca no chat.
+- **Teste da conta:** `.venv/Scripts/python.exe backend/manage.py testar_smtp --para <endereço do próprio usuário>`. Mensagem simples, sem anexos, para um endereço escolhido pelo usuário.
+- **Painel:** em preparação confirmada, o botão **Enviar e-mails (N)** exige a permissão `enviar_preparacaoenvio` e uma confirmação na tela. É uma mensagem por destinatário, com os anexos dele e Message-ID registrado. Status por destinatário: Pendente, Aceito pelo servidor (com data), Falha (com motivo) e Indeterminado. **Aceito não comprova entrega.**
+- **Sem duplicidade:** os destinatários são marcados como "em envio" numa transação com bloqueio da preparação, antes de qualquer mensagem sair. Um segundo clique, simultâneo ou não, não reenvia. Falhas podem ser repetidas, e só elas são reenviadas. Envio interrompido sem resposta do servidor fica Indeterminado e só é repetido com confirmação explícita de que não foi recebido. Falha de conexão ou autenticação marca todos como Falha, sem envio.
+- **Limites:** o envio é síncrono, dentro da requisição (adequado a poucos destinatários por cliente; fila em segundo plano fica para quando houver volume). Não há confirmação de entrega ou leitura nem tratamento de devoluções (bounce).
+
+Validação: 60 testes SQLite (5 novos de envio: anexos por destinatário, sem duplicidade, falha parcial com nova tentativa, conexão recusada, indeterminado, falta de configuração e permissão). 14 verificações PostgreSQL descartáveis (nova: dois envios simultâneos da mesma preparação geram um único e-mail). Fluxo Edge com backend de arquivo, mensagem gerada conferida (remetente, destinatário, Message-ID e anexo). A migration 0008 foi refeita com os campos de envio, pois não estava aplicada em nenhum banco permanente; continua **não aplicada ao banco instalado**.
+
 ## Preparação de envio no painel — 14/10/2026
 
 Etapa 1 do plano até produção aprovado pelo usuário em 14/10/2026 (meta: MVP em 27/11/2026). Implementado em `backend/clientes/preparacao*.py`, template `admin/clientes/preparacao.html` e migration **0008** (quatro tabelas novas: preparação, documento, destinatário e item). **A migration não foi aplicada ao banco instalado:** antes disso, fazer backup e obter autorização, como na 0007.
 
 Fluxo no painel: cadastro do cliente → **Preparar envio de documentos** → anexar PDFs classificados (cinco categorias independentes) → conferir os destinatários atuais (`destinatarios.efetivos`) → revisar assunto e texto → **Confirmar preparação**. A confirmação grava destinatários e anexos daquele momento, e a preparação passa a ser imutável. **Nenhuma mensagem é enviada**: o envio por SMTP é a etapa 2.
 
-Regras adotadas como padrão nesta etapa (confirmar com o usuário):
+Regras adotadas nesta etapa (aprovadas pelo usuário em 14/10/2026):
 - **Prevenção de reenvio:** o mesmo PDF (SHA-256) para o mesmo e-mail já presente em preparação confirmada bloqueia a confirmação. Reenvio intencional exige motivo, registrado na preparação e marcado nos itens. Preparações canceladas não contam.
 - **Mesmo e-mail em vários contatos:** um único destinatário, com a soma dos anexos.
 - Contato sem e-mail aparece impedido, e o cadastro é mantido. Contato sem anexo das suas categorias fica de fora, com aviso.

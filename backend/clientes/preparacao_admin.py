@@ -20,10 +20,18 @@ class NovaPreparacaoForm(forms.ModelForm):
 class PreparacaoEnvioAdmin(admin.ModelAdmin):
     form = NovaPreparacaoForm
     autocomplete_fields = ['cliente']
-    list_display = ['id', 'cliente', 'status', 'criada_em', 'criada_por', 'confirmada_em']
+    list_display = ['id', 'cliente', 'status', 'situacao_envio', 'criada_em', 'criada_por', 'confirmada_em']
     list_filter = ['status']
     search_fields = ['cliente__razao_social', 'cliente__nome_fantasia']
     list_select_related = ['cliente', 'criada_por']
+
+    @admin.display(description='Envio')
+    def situacao_envio(self, obj):
+        if obj.status != 'confirmada':
+            return '—'
+        estados = list(obj.destinatarios.values_list('status_envio', flat=True))
+        aceitos = estados.count('aceito')
+        return f'{aceitos}/{len(estados)} aceitos' + (' · pendências' if aceitos < len(estados) else '')
 
     def has_change_permission(self, request, obj=None):
         return False
@@ -61,14 +69,15 @@ class PreparacaoEnvioAdmin(admin.ModelAdmin):
         erros = []
         if request.method == 'POST':
             acao = request.POST.get('acao')
-            if acao == 'confirmar' and not pode_confirmar or acao != 'confirmar' and not pode_editar:
+            exigida = dict(confirmar=pode_confirmar, enviar=request.user.has_perm('clientes.enviar_preparacaoenvio')).get(acao, pode_editar)
+            if not exigida:
                 raise PermissionDenied
             try:
                 self._executar(request, prep, acao)
             except ValidationError as exc:
                 erros = exc.messages
             else:
-                return redirect(request.path + ('#revisao' if acao in ('salvar_texto', 'confirmar') else '#documentos'))
+                return redirect(request.path + {'salvar_texto': '#revisao', 'confirmar': '#revisao', 'enviar': '#envio'}.get(acao, '#documentos'))
         prep.refresh_from_db()
         contexto = dict(self.admin_site.each_context(request), opts=self.model._meta, original=prep, prep=prep,
                         title=f'Preparação {prep.pk} — {prep.cliente}', erros=erros, categorias=NOMES_CATEGORIAS.items(),
@@ -81,8 +90,12 @@ class PreparacaoEnvioAdmin(admin.ModelAdmin):
                 contexto.update(assunto=request.POST.get('assunto', ''), mensagem=request.POST.get('mensagem', ''),
                                 motivo_reenvio=request.POST.get('motivo_reenvio', ''))
         else:
-            contexto['confirmados'] = prep.destinatarios.prefetch_related('itens__documento')
-            contexto['documentos'] = prep.documentos.all()
+            confirmados = list(prep.destinatarios.prefetch_related('itens__documento'))
+            por_status = {s: sum(1 for d in confirmados if d.status_envio == s) for s in ('pendente', 'enviando', 'aceito', 'falha')}
+            contexto.update(confirmados=confirmados, documentos=prep.documentos.all(), por_status=por_status,
+                            envio_configurado=servico.envio_configurado(),
+                            pode_enviar=(prep.status == 'confirmada' and request.user.has_perm('clientes.enviar_preparacaoenvio')
+                                         and bool(por_status['pendente'] or por_status['falha'] or por_status['enviando'])))
         contexto.setdefault('assunto', prep.assunto)
         contexto.setdefault('mensagem', prep.mensagem)
         return TemplateResponse(request, 'admin/clientes/preparacao.html', contexto)
@@ -115,7 +128,13 @@ class PreparacaoEnvioAdmin(admin.ModelAdmin):
                 raise ValidationError('Marque a conferência dos destinatários e anexos antes de confirmar.')
             servico.confirmar(prep.pk, impressao=post.get('impressao', ''), assunto=post.get('assunto', ''),
                               mensagem=post.get('mensagem', ''), motivo_reenvio=post.get('motivo_reenvio', ''), autor=request.user)
-            messages.success(request, 'Preparação confirmada. Nenhuma mensagem foi enviada: o envio por e-mail será a próxima etapa.')
+            messages.success(request, 'Preparação confirmada. Nenhuma mensagem foi enviada ainda: confira e use Enviar e-mails.')
+        elif acao == 'enviar':
+            r = servico.enviar(prep.pk, request.user, incluir_indeterminados=post.get('incluir_indeterminados') == 'sim')
+            if r['aceitos']:
+                messages.success(request, f"{r['aceitos']} e-mail(s) aceito(s) pelo servidor. Aceitação não comprova entrega na caixa do destinatário.")
+            if r['falhas']:
+                raise ValidationError(f"{r['falhas']} envio(s) falharam; veja o motivo na tabela. Você pode tentar novamente.")
         elif acao == 'cancelar':
             servico.cancelar(prep.pk)
             messages.success(request, 'Preparação cancelada. Registros e arquivos preservados.')

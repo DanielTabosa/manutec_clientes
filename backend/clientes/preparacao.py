@@ -161,3 +161,64 @@ def cancelar(preparacao_id):
     prep.status, prep.cancelada_em = 'cancelada', timezone.now()
     prep.save(update_fields=['status', 'cancelada_em'])
     return prep
+
+
+def envio_configurado():
+    from django.conf import settings
+    return bool(settings.EMAIL_HOST and settings.DEFAULT_FROM_EMAIL)
+
+
+def enviar(preparacao_id, autor, incluir_indeterminados=False):
+    """Envia aos destinatários pendentes ou com falha; cada um é marcado antes de sair para evitar duplicidade."""
+    from django.conf import settings
+    from django.core.mail import EmailMessage, get_connection
+    from django.core.mail.message import make_msgid
+    from django.db.models import F
+    if not envio_configurado():
+        raise ValidationError('Envio por e-mail não configurado. Informe os dados SMTP no .env do servidor.')
+    estados = ['pendente', 'falha'] + (['enviando'] if incluir_indeterminados else [])
+    agora = timezone.now()
+    with transaction.atomic():
+        prep = PreparacaoEnvio.objects.select_for_update().get(pk=preparacao_id)
+        if prep.status != 'confirmada':
+            raise ValidationError('Somente preparações confirmadas podem ser enviadas.')
+        ids = list(prep.destinatarios.filter(status_envio__in=estados).values_list('pk', flat=True))
+        if not ids:
+            raise ValidationError('Nenhum destinatário pendente de envio.')
+        DestinatarioPreparacao.objects.filter(pk__in=ids).update(status_envio='enviando', tentativas=F('tentativas') + 1,
+                                                                 ultima_tentativa_em=agora, ultima_tentativa_por=autor, ultimo_erro='')
+    resultado = dict(aceitos=0, falhas=0)
+
+    def falhou(pks, exc):
+        DestinatarioPreparacao.objects.filter(pk__in=pks).update(status_envio='falha', ultimo_erro=f'{type(exc).__name__}: {exc}'[:300])
+        resultado['falhas'] += len(pks)
+
+    conexao = get_connection(fail_silently=False)
+    try:
+        conexao.open()
+    except Exception as exc:  # Falha de conexão/autenticação: nada saiu.
+        falhou(ids, exc)
+        return resultado
+    try:
+        dominio = settings.DEFAULT_FROM_EMAIL.rsplit('@', 1)[-1].strip('> ') or None
+        for dest in DestinatarioPreparacao.objects.filter(pk__in=ids).prefetch_related('itens__documento'):
+            message_id = make_msgid(domain=dominio)
+            msg = EmailMessage(prep.assunto, prep.mensagem, settings.DEFAULT_FROM_EMAIL, [dest.email], connection=conexao,
+                               reply_to=[settings.EMAIL_REPLY_TO] if settings.EMAIL_REPLY_TO else None,
+                               headers={'Message-ID': message_id})
+            try:
+                for item in dest.itens.all():
+                    with item.documento.arquivo.open('rb') as arquivo:
+                        msg.attach(item.documento.nome_original, arquivo.read(), 'application/pdf')
+                msg.send()
+            except Exception as exc:
+                falhou([dest.pk], exc)
+                continue
+            DestinatarioPreparacao.objects.filter(pk=dest.pk).update(status_envio='aceito', aceito_em=timezone.now(), message_id=message_id)
+            resultado['aceitos'] += 1
+    finally:
+        try:
+            conexao.close()
+        except Exception:
+            pass
+    return resultado

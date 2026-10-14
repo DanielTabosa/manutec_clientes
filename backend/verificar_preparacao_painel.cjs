@@ -50,6 +50,12 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', {name: 'Confirmar preparação'}).click();
     await page.getByText('Nenhuma mensagem foi enviada', {exact: false}).first().waitFor();
     await page.screenshot({path: out + '/preparacao-confirmada.png', fullPage: true});
+    // Envio com backend de arquivo do servidor de QA: nenhuma mensagem real sai.
+    await page.getByRole('button', {name: /Enviar e-mails \(1\)/}).click();
+    await page.getByText('aceito(s) pelo servidor', {exact: false}).first().waitFor();
+    assert.equal(await page.locator('[data-envio]').filter({hasText: email}).locator('[data-status-envio]').getAttribute('data-status-envio'), 'aceito');
+    assert.equal(await page.getByRole('button', {name: /Enviar e-mails/}).count(), 0);
+    await page.screenshot({path: out + '/preparacao-enviada.png', fullPage: true});
     // Mesmo PDF ao mesmo e-mail: alerta de reenvio e motivo exigido.
     await preparar();
     await page.locator('#arquivos').setInputFiles([pdf('boleto-copia.pdf', 'visual ' + id)]);

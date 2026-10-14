@@ -95,16 +95,32 @@
   {% else %}
   <section class="prep-secao" aria-labelledby="s4">
     <h2 id="s4">{% if prep.status == 'confirmada' %}Registro confirmado{% else %}Preparação cancelada{% endif %}</h2>
-    {% if prep.status == 'confirmada' %}<p class="prep-alerta prep-info">Nenhuma mensagem foi enviada. Este registro guarda os destinatários e anexos do momento da confirmação.</p>{% endif %}
+    {% if prep.status == 'confirmada' %}<p class="prep-alerta prep-info">Este registro guarda os destinatários e anexos do momento da confirmação. {% if por_status.aceito %}{{ por_status.aceito }} de {{ confirmados|length }} e-mail(s) aceitos pelo servidor; aceitação não comprova entrega.{% else %}Nenhuma mensagem foi enviada ainda.{% endif %}</p>{% endif %}
     <p><strong>Assunto:</strong> {{ prep.assunto }}</p>
     <pre class="prep-mensagem">{{ prep.mensagem }}</pre>
     {% if prep.motivo_reenvio %}<p><strong>Motivo do reenvio:</strong> {{ prep.motivo_reenvio }}</p>{% endif %}
     {% if prep.status == 'confirmada' %}
     <table class="prep-tabela">
-      <thead><tr><th>Destinatário</th><th>E-mail</th><th>Anexos</th></tr></thead>
+      <thead><tr><th>Destinatário</th><th>E-mail</th><th>Anexos</th><th>Envio</th></tr></thead>
       <tbody>{% for dest in confirmados %}<tr data-envio><td>{{ dest.nomes }}</td><td class="prep-email">{{ dest.email }}</td>
-        <td><ul class="prep-docs">{% for i in dest.itens.all %}<li><a href="{% url 'admin:clientes_preparacaoenvio_documento' prep.pk i.documento.pk %}" target="_blank" rel="noopener">{{ i.documento.nome_original }}</a> <span class="prep-chip prep-chip-{{ i.documento.categoria }}">{{ i.documento.get_categoria_display }}</span>{% if i.reenvio %} <span class="prep-chip prep-chip-aviso">Reenvio</span>{% endif %}</li>{% endfor %}</ul></td></tr>{% endfor %}</tbody>
+        <td><ul class="prep-docs">{% for i in dest.itens.all %}<li><a href="{% url 'admin:clientes_preparacaoenvio_documento' prep.pk i.documento.pk %}" target="_blank" rel="noopener">{{ i.documento.nome_original }}</a> <span class="prep-chip prep-chip-{{ i.documento.categoria }}">{{ i.documento.get_categoria_display }}</span>{% if i.reenvio %} <span class="prep-chip prep-chip-aviso">Reenvio</span>{% endif %}</li>{% endfor %}</ul></td>
+        <td data-status-envio="{{ dest.status_envio }}"><span class="prep-chip prep-envio-{{ dest.status_envio }}">{{ dest.get_status_envio_display }}</span>
+          {% if dest.aceito_em %}<div class="prep-meta">{{ dest.aceito_em|date:"d/m/Y H:i" }}</div>{% endif %}
+          {% if dest.status_envio == 'falha' %}<div class="prep-meta prep-erro-texto">{{ dest.ultimo_erro }}</div>{% endif %}
+          {% if dest.status_envio == 'enviando' %}<div class="prep-meta">Envio interrompido sem confirmação do servidor. Verifique com o destinatário antes de repetir.</div>{% endif %}
+          {% if dest.tentativas > 1 %}<div class="prep-meta">{{ dest.tentativas }} tentativas</div>{% endif %}</td></tr>{% endfor %}</tbody>
     </table>
+    {% if pode_enviar %}
+    <div id="envio" class="prep-envio">
+      {% if envio_configurado %}
+      <form method="post" data-confirmar-acao="Enviar agora os e-mails pendentes desta preparação?">{% csrf_token %}
+        <input type="hidden" name="acao" value="enviar">
+        {% if por_status.enviando %}<label class="prep-conferencia"><input type="checkbox" name="incluir_indeterminados" value="sim"> Incluir {{ por_status.enviando }} envio(s) indeterminado(s): confirmei que não foram recebidos.</label>{% endif %}
+        <div class="prep-rodape"><button type="submit" class="prep-botao-confirmar">{% if por_status.falha and not por_status.pendente %}Tentar novamente ({{ por_status.falha }}){% else %}Enviar e-mails ({{ por_status.pendente|add:por_status.falha }}){% endif %}</button></div>
+      </form>
+      {% else %}<p class="prep-alerta prep-aviso">Envio por e-mail ainda não configurado no servidor (SMTP). A preparação fica registrada e poderá ser enviada depois.</p>{% endif %}
+    </div>
+    {% endif %}
     {% endif %}
     <h3>Documentos anexados</h3>
     <ul class="prep-docs">{% for d in documentos %}<li><a href="{% url 'admin:clientes_preparacaoenvio_documento' prep.pk d.pk %}" target="_blank" rel="noopener">{{ d.nome_original }}</a> <span class="prep-chip prep-chip-{{ d.categoria }}">{{ d.get_categoria_display }}</span>{% if d.removido_em %} <span class="prep-meta">removido em {{ d.removido_em|date:"d/m/Y H:i" }}</span>{% endif %}</li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul>
