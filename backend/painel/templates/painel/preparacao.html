@@ -85,7 +85,7 @@
 
   <section class="card" aria-labelledby="s2">
     <div class="card-head"><div class="step-title"><span class="step-num">2</span><div><h2 id="s2">Destinatários</h2><p class="muted small">Cada e-mail recebe só os documentos das categorias configuradas. Nada é alterado aqui.</p></div></div>
-      <a class="btn btn-sm" href="{% url 'admin:clientes_cliente_destinatarios' prep.cliente_id %}">Configurar destinatários</a></div>
+      <a class="btn btn-sm" href="{% url 'painel:cliente_destinatarios' prep.cliente_id %}">Configurar destinatários</a></div>
     <div class="card-body stack">
       <div class="summary"><span><b>{{ plano.envios|length }}</b>e-mail(s) apto(s)</span><span><b>{{ plano.sem_email|length }}</b>sem e-mail</span><span><b>{{ plano.sem_anexo|length }}</b>sem anexo aplicável</span></div>
     </div>

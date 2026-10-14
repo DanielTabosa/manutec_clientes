@@ -1,13 +1,14 @@
-# Retomada — interface própria (1ª entrega) pronta; segunda entrega até 31/10
+# Retomada — interface própria completa (2 entregas); próxima: implantação
 
 ## Plano aprovado em 14/10/2026 (meta: MVP em produção em 27/11/2026)
 
 1. ✅ Preparação no painel, com histórico, retrato e prevenção de reenvio.
 2. ✅ Envio por SMTP: `financeiro@manutecvalvulas.com.br` (465 SSL), teste chegou na caixa de entrada. DMARC ausente: recomendação futura.
 3. ✅ Conta Azul no fluxo: busca de boleto com escolha da parcela e NFS-e do ZIP. Teste real aprovado pelo usuário em 14/10. Consulta de CNPJ com fontes reserva.
-3b. 🟡 Interface própria (`backend/painel`):
+3b. ✅ Interface própria (`backend/painel`):
    - ✅ 1ª entrega em 14/10 (meta era 21/10): login, início com lista de trabalho, clientes, ficha do cliente, envio de documentos e preparação completa.
-   - Pendente, 2ª entrega até 31/10: cadastro e edição de cliente (consulta de CNPJ/CEP), contatos, administradoras e configuração de destinatários na interface própria. Hoje esses links abrem o admin.
+   - ✅ 2ª entrega em 14/10 (meta era 31/10): cadastro e edição de cliente com consulta de CNPJ/CEP, troca de CNPJ, administradora, contatos, administradoras e configuração de destinatários. Responsabilidades seguem no admin.
+   - Pendente, a pedido do usuário: discutir a paleta de cores (hoje navy + verde de confirmação).
 4. Implantação: hospedagem a definir pelo usuário, HTTPS, DEBUG desligado, segredos, backup e restauração. Decidir a renovação de token do Conta Azul em produção (hoje é manual).
 5. Homologação com a base definitiva e treinamento.
 
@@ -15,9 +16,10 @@
 
 - Migration 0008 aplicada ao banco instalado (backup `.venv/backups/pre_0008_20261014/`). Mudanças de modelo exigem 0009+.
 - `.env` local: SMTP configurado (senha pelo usuário) e `DJANGO_CONTAAZUL_AMBIENTE=producao` (somente GET). `config/test_settings.py` isola os testes dessas integrações.
-- Lógica da preparação em `clientes/preparacao_fluxo.py`, compartilhada entre o admin (`preparacao_admin.py`) e o painel (`painel/views.py`).
+- Lógica compartilhada entre admin e painel: `clientes/preparacao_fluxo.py` (preparação) e `clientes/destinatarios_fluxo.py` (destinatários). Cadastros do painel em `painel/cadastros.py`.
 - Design: tokens em `painel/static/painel/app.css`. Revisão Impeccable em contexto único (processo proporcional); pendente uma fonte própria auto-hospedada, que exige autorização para baixar.
-- Validação: 70 testes Django, 56 testes Conta Azul, 14 verificações PostgreSQL descartáveis e `backend/verificar_interface.cjs` (capturas em `.venv/qa/interface`).
+- Validação: 75 testes Django, 56 testes Conta Azul, 14 verificações PostgreSQL descartáveis, `backend/verificar_interface.cjs` e `backend/verificar_cadastros.cjs` (capturas em `.venv/qa/`).
+- Servidor local do usuário: aba de terminal "Servidor Manutec" com `manage.py runserver` (autoreload) em `http://127.0.0.1:8000/`.
 
 ## Ferramentas
 

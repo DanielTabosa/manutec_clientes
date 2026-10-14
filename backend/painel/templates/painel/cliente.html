@@ -9,7 +9,7 @@
     <p class="lead">{% if cliente.nome_fantasia %}{{ cliente.nome_fantasia }} · {% endif %}<span class="num-data">{{ cliente.cnpj_atual|cnpj|default:"Sem CNPJ atual" }}</span></p>
   </div>
   <div class="actions">
-    {% if perms.clientes.change_cliente %}<a class="btn" href="{% url 'admin:clientes_cliente_change' cliente.pk %}">Editar cadastro</a>{% endif %}
+    {% if perms.clientes.change_cliente %}<a class="btn" href="{% url 'painel:cliente_editar' cliente.pk %}">Editar cadastro</a>{% endif %}
     {% if perms.clientes.add_preparacaoenvio %}<form class="inline-form" method="post" action="{% url 'painel:nova_preparacao' %}">{% csrf_token %}<input type="hidden" name="cliente" value="{{ cliente.pk }}"><button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-send"/></svg>Preparar envio</button></form>{% endif %}
   </div>
 </div>
@@ -18,7 +18,7 @@
   <div class="stack">
     <section class="card" aria-labelledby="t-dest">
       <div class="card-head"><div><h2 id="t-dest">Quem recebe documentos</h2><p class="muted small">Destinatários efetivos hoje, com as categorias de cada um.</p></div>
-        <a class="btn btn-sm" href="{% url 'admin:clientes_cliente_destinatarios' cliente.pk %}">Configurar</a></div>
+        {% if perms.clientes.view_configuracaodestinatarios %}<a class="btn btn-sm" href="{% url 'painel:cliente_destinatarios' cliente.pk %}">Configurar</a>{% endif %}</div>
       {% if efetivos %}
       <div class="table-wrap"><table class="table responsive">
         <thead><tr><th>Contato</th><th>Categorias</th><th>Origem</th></tr></thead>
@@ -51,20 +51,20 @@
 
   <div class="stack">
     <section class="card card-pad" aria-labelledby="t-dados">
-      <h2 id="t-dados" style="margin-bottom:12px">Cadastro</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px"><h2 id="t-dados">Cadastro</h2>{% if perms.clientes.change_cliente %}<span class="actions"><a class="btn btn-sm" href="{% url 'painel:cliente_cnpj' cliente.pk %}">Trocar CNPJ</a>{% if perms.clientes.view_administradora %}<a class="btn btn-sm" href="{% url 'painel:cliente_administradora' cliente.pk %}">Administradora</a>{% endif %}</span>{% endif %}</div>
       <dl class="dl">
         <dt>CNPJ atual</dt><dd class="num-data">{{ cliente.cnpj_atual|cnpj|default:"—" }}</dd>
         {% if cnpjs_anteriores %}<dt>CNPJs anteriores</dt><dd class="num-data">{% for h in cnpjs_anteriores %}{{ h.cnpj|cnpj }}<span class="muted small"> até {{ h.data_fim|date:"d/m/Y" }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
         <dt>Endereço</dt><dd>{% if cliente.logradouro %}{{ cliente.logradouro }}{% if cliente.numero %}, {{ cliente.numero }}{% endif %}{% if cliente.complemento %} — {{ cliente.complemento }}{% endif %}<br>{{ cliente.bairro|default:"" }}{% if cliente.cidade %} · {{ cliente.cidade }}/{{ cliente.estado }}{% endif %}{% if cliente.cep %} · CEP {{ cliente.cep|slice:":5" }}-{{ cliente.cep|slice:"5:" }}{% endif %}{% else %}—{% endif %}</dd>
-        <dt>Administradora</dt><dd>{% if vinculo %}{{ vinculo.administradora }}<div class="muted small">desde {{ vinculo.data_inicio|date:"d/m/Y" }}</div>{% else %}Sem administradora{% endif %}</dd>
+        <dt>Administradora</dt><dd>{% if vinculo %}{% if perms.clientes.view_administradora %}<a href="{% url 'painel:administradora' vinculo.administradora_id %}">{{ vinculo.administradora }}</a>{% else %}{{ vinculo.administradora }}{% endif %}<div class="muted small">desde {{ vinculo.data_inicio|date:"d/m/Y" }}</div>{% else %}Sem administradora{% endif %}</dd>
         {% if cliente.observacoes %}<dt>Observações</dt><dd>{{ cliente.observacoes|linebreaksbr }}</dd>{% endif %}
       </dl>
     </section>
 
     <section class="card" aria-labelledby="t-contatos">
-      <div class="card-head"><h2 id="t-contatos">Contatos do condomínio</h2><span class="muted small">{{ contatos|length }} vigente(s)</span></div>
+      <div class="card-head"><h2 id="t-contatos">Contatos do condomínio <span class="count">{{ contatos|length }}</span></h2>{% if perms.clientes.add_contato %}<a class="btn btn-sm" href="{% url 'painel:contato_novo' cliente.pk %}"><svg class="i"><use href="#i-plus"/></svg>Novo contato</a>{% endif %}</div>
       {% if contatos %}
-      <ul class="doc-list" style="padding:12px 20px 16px">{% for c in contatos %}<li style="display:block;padding:6px 0;border-bottom:1px solid var(--border)"><strong>{{ c.nome }}</strong>{% if c.funcao %} <span class="muted small">· {{ c.funcao }}</span>{% endif %}<div class="row-sub wrap-any">{{ c.email|default:"Sem e-mail" }}{% if c.telefone %} · {{ c.telefone }}{% endif %}</div></li>{% endfor %}</ul>
+      <ul class="worklist">{% for c in contatos %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ c.nome }}{% if c.funcao %} <span class="muted small" style="font-weight:400">· {{ c.funcao }}</span>{% endif %}</strong><span class="row-sub wrap-any">{{ c.email|default:"Sem e-mail" }}{% if c.telefone %} · {{ c.telefone }}{% endif %}</span></span>{% if perms.clientes.change_contato %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:contato_editar' c.pk %}" aria-label="Editar {{ c.nome }}">Editar</a>{% endif %}</div></li>{% endfor %}</ul>
       {% else %}<div class="empty">Nenhum contato direto vigente.</div>{% endif %}
     </section>
   </div>

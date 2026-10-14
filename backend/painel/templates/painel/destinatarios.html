@@ -1,0 +1,69 @@
+{% extends "painel/base.html" %}
+{% load static %}
+{% block titulo %}Destinatários — {{ obj }}{% endblock %}
+{% block conteudo %}
+<nav class="crumbs" aria-label="Você está em">{% for nome, url in crumbs %}<a href="{{ url }}">{{ nome }}</a><span aria-hidden="true">›</span>{% endfor %}<span>Destinatários</span></nav>
+<div class="page-head">
+  <div>
+    <h1>Quem recebe documentos</h1>
+    <p class="lead">{% if escopo == 'cliente' %}{{ obj }} · marque as categorias de cada contato. Salvar vale na hora e preserva o histórico.{% else %}Padrão da {{ obj }}, usado por {{ alcance }} condomínio(s) que seguem a lista da empresa.{% endif %}</p>
+  </div>
+</div>
+
+{% if erro %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><span>{{ erro }}</span></div>{% endif %}
+
+<form method="post" class="stack">{% csrf_token %}
+  {{ form.numero }}{{ form.vinculo_id }}
+  {% if escopo == 'cliente' %}
+  <section class="card card-pad">
+    <div class="field" style="max-width:520px"><label for="{{ form.modo.id_for_label }}">{{ form.modo.label }}</label>{{ form.modo }}</div>
+    <div class="modo-ajuda muted small" style="margin-top:8px">
+      <p data-modo="usar">Os contatos da administradora seguem a lista padrão da empresa e as atualizações dela. Selecione abaixo os contatos do próprio condomínio.</p>
+      <p data-modo="complementar">Mantém a lista da administradora e permite acrescentar contatos ou categorias para este condomínio.</p>
+      <p data-modo="substituir">A lista da administradora não é usada. Selecione abaixo os contatos e categorias que este condomínio recebe.</p>
+    </div>
+    {% if not vinculo %}<p class="hint">Este condomínio está sem administradora; só os contatos diretos aparecem.</p>{% endif %}
+  </section>
+  {% else %}{{ form.modo }}{% endif %}
+
+  <section class="card">
+    <div class="card-head"><div><h2>Contatos e categorias</h2><p class="muted small">Categorias são independentes: um contato pode receber só o boleto, só a nota, ou qualquer combinação.</p></div></div>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="card-body"><div class="alert alert-error" style="margin:0">{{ formset.non_form_errors }}</div></div>{% endif %}
+    <div class="table-wrap"><table class="table table-dest responsive" data-pode-editar="{{ pode_editar|yesno:'true,false' }}">
+      <thead><tr><th>Contato</th><th class="c">Todas</th><th class="c">Boleto</th><th class="c">Nota fiscal</th><th class="c">Laudo</th><th class="c">Comunicado</th><th class="c">Cobrança</th>{% if escopo == 'cliente' %}<th class="c">Parar neste condomínio</th>{% endif %}</tr></thead>
+      <tbody>{% for f, contato, empresa in linhas %}<tr data-destinatario>
+        <td data-label="Contato">{{ f.contato_id }}{{ f.contato_administradora_id }}<strong>{{ contato.nome|default:"Contato indisponível" }}</strong>
+          <div class="row-sub">{% if empresa %}Administradora · {% else %}Condomínio · {% endif %}{% if contato.email %}{{ contato.email }}{% else %}<span class="chip chip-error">Sem e-mail</span>{% endif %}</div>{{ f.errors }}</td>
+        <td class="c" data-label="Todas"><input type="checkbox" data-todas aria-label="Todas as categorias de {{ contato.nome }}" {% if not pode_editar %}disabled{% endif %}></td>
+        <td class="c" data-label="Boleto">{{ f.boleto }}</td><td class="c" data-label="Nota fiscal">{{ f.nota_fiscal }}</td><td class="c" data-label="Laudo">{{ f.laudo }}</td><td class="c" data-label="Comunicado">{{ f.comunicado }}</td><td class="c" data-label="Cobrança">{{ f.cobranca }}</td>
+        {% if escopo == 'cliente' %}<td class="c" data-label="Parar neste condomínio">{% if empresa %}{{ f.encerrado_local }}{% else %}—{% endif %}</td>{% endif %}
+      </tr>{% empty %}<tr><td colspan="8"><div class="empty"><strong>Nenhum contato disponível</strong>Cadastre um contato para selecionar destinatários.</div></td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if pode_editar and linhas %}<div class="card-body" style="border-top:1px solid var(--border)"><div class="foot-actions"><a class="btn" href="{{ voltar }}">Voltar</a><button type="submit" class="btn btn-primary">Salvar destinatários</button></div></div>{% endif %}
+  </section>
+</form>
+
+{% if escopo == 'cliente' %}
+<div class="grid grid-2" style="margin-top:24px">
+  <section class="card" aria-labelledby="t-ef">
+    <div class="card-head"><h2 id="t-ef">Resultado: quem recebe hoje</h2></div>
+    {% if efetivos %}<ul class="worklist">{% for item in efetivos %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ item.nome }}</strong><span class="row-sub">{{ item.email|default:"Sem e-mail" }} · {{ item.origens|join:", " }}</span></span><span class="chips">{% for c in item.categorias %}<span class="chip chip-info">{{ c }}</span>{% endfor %}</span></div></li>{% endfor %}</ul>
+    {% else %}<div class="empty">Nenhum destinatário efetivo.</div>{% endif %}
+  </section>
+  <section class="card" aria-labelledby="t-pad">
+    <div class="card-head"><h2 id="t-pad">Padrão da administradora</h2>{% if vinculo %}<a class="btn btn-sm" href="{% url 'painel:administradora_destinatarios' vinculo.administradora_id %}">Editar padrão</a>{% endif %}</div>
+    {% if herdados %}<ul class="worklist">{% for item in herdados %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ item.contato_administradora.nome }}</strong>{% if item.contato_administradora.encerrado_em %}<span class="row-sub">encerrado</span>{% endif %}</span><span class="chips">{% if item.boleto %}<span class="chip">boleto</span>{% endif %}{% if item.nota_fiscal %}<span class="chip">nota fiscal</span>{% endif %}{% if item.laudo %}<span class="chip">laudo</span>{% endif %}{% if item.comunicado %}<span class="chip">comunicado</span>{% endif %}{% if item.cobranca %}<span class="chip">cobrança</span>{% endif %}</span></div></li>{% endfor %}</ul>
+    {% else %}<div class="empty">Sem padrão cadastrado.</div>{% endif %}
+  </section>
+</div>
+{% endif %}
+
+<section class="card" style="margin-top:24px" aria-labelledby="t-hist">
+  <div class="card-head"><h2 id="t-hist">Histórico de alterações</h2><span class="muted small">{{ revisoes.paginator.count }} revisão(ões)</span></div>
+  {% if revisoes %}<ul class="worklist">{% for r in revisoes %}<li><details class="hist"><summary><span class="worklist-main"><strong>{% if r.configuracao.administradora_id %}Padrão de {{ r.configuracao.administradora }} · {% endif %}Revisão {{ r.numero }}</strong><span class="row-sub">{{ r.registrado_em|date:"d/m/Y H:i" }} · {{ r.motivo }}{% if r.autor %} · {{ r.autor }}{% endif %}</span></span></summary>
+    <ul class="doc-list" style="padding:0 20px 14px">{% for i in r.itens.all %}<li>{{ i.contato.nome }}{{ i.contato_administradora.nome }}: {% if i.encerrado_local %}encerrado neste condomínio{% else %}{% if i.boleto %}boleto; {% endif %}{% if i.nota_fiscal %}nota fiscal; {% endif %}{% if i.laudo %}laudo; {% endif %}{% if i.comunicado %}comunicado; {% endif %}{% if i.cobranca %}cobrança{% endif %}{% endif %}</li>{% empty %}<li class="muted">Sem destinatários.</li>{% endfor %}</ul></details></li>{% endfor %}</ul>
+  {% else %}<div class="empty">Nenhuma alteração registrada.</div>{% endif %}
+</section>
+<script src="{% static 'clientes/destinatarios.js' %}" defer></script>
+{% endblock %}

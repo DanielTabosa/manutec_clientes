@@ -1,0 +1,39 @@
+{% extends "painel/base.html" %}
+{% load painel %}
+{% block titulo %}{{ adm.razao_social }}{% endblock %}
+{% block conteudo %}
+<nav class="crumbs" aria-label="Você está em"><a href="{% url 'painel:administradoras' %}">Administradoras</a><span aria-hidden="true">›</span><span>{{ adm.razao_social }}</span></nav>
+<div class="page-head">
+  <div><h1>{{ adm.razao_social }}</h1><p class="lead">{% if adm.nome_fantasia %}{{ adm.nome_fantasia }} · {% endif %}<span class="num-data">{{ adm.cnpj|cnpj|default:"Sem CNPJ" }}</span>{% if adm.email %} · {{ adm.email }}{% endif %}{% if adm.telefone %} · {{ adm.telefone }}{% endif %}</p></div>
+  <div class="actions">
+    {% if perms.clientes.change_administradora %}<a class="btn" href="{% url 'painel:administradora_editar' adm.pk %}">Editar cadastro</a>{% endif %}
+    {% if perms.clientes.view_configuracaodestinatarios %}<a class="btn btn-primary" href="{% url 'painel:administradora_destinatarios' adm.pk %}"><svg class="i"><use href="#i-mail"/></svg>Destinatários padrão</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-3">
+  <section class="card" aria-labelledby="t-cont">
+    <div class="card-head"><div><h2 id="t-cont">Contatos da empresa</h2><p class="muted small">Categorias mostradas são as do padrão da empresa.</p></div>
+      {% if perms.clientes.add_contatoadministradora %}<a class="btn btn-sm" href="{% url 'painel:contato_adm_novo' adm.pk %}"><svg class="i"><use href="#i-plus"/></svg>Novo contato</a>{% endif %}</div>
+    {% if contatos %}
+    <div class="table-wrap"><table class="table responsive">
+      <thead><tr><th>Contato</th><th>Padrão</th><th><span class="sr">Ações</span></th></tr></thead>
+      <tbody>{% for c in contatos %}<tr data-contato-adm{% if c.encerrado_em %} class="encerrado"{% endif %}>
+        <td data-label="Contato"><strong>{{ c.nome }}</strong>{% if c.encerrado_em %} <span class="chip">Encerrado em {{ c.encerrado_em|date:"d/m/Y" }}</span>{% endif %}<div class="row-sub wrap-any">{{ c.email|default:"Sem e-mail" }}{% if c.telefone %} · {{ c.telefone }}{% endif %}</div></td>
+        <td data-label="Padrão"><div class="chips">{% for n in c.categorias_padrao %}<span class="chip chip-info">{{ n }}</span>{% empty %}<span class="muted small">—</span>{% endfor %}</div></td>
+        <td class="acoes">{% if not c.encerrado_em %}
+          {% if perms.clientes.change_contatoadministradora %}<a class="btn btn-sm" href="{% url 'painel:contato_adm_editar' c.pk %}">Editar</a>{% endif %}
+          {% if perms.clientes.change_contatoadministradora and perms.clientes.change_configuracaodestinatarios %}<form class="inline-form" method="post" action="{% url 'painel:contato_adm_encerrar' c.pk %}" data-confirmar-acao="Encerrar {{ c.nome }} na empresa inteira? Deixa de receber documentos de todos os condomínios; o histórico é preservado.">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit">Encerrar</button></form>{% endif %}
+        {% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="empty"><strong>Nenhum contato</strong>Cadastre quem recebe documentos nesta empresa.</div>{% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="t-cond">
+    <div class="card-head"><h2 id="t-cond">Condomínios administrados</h2><span class="count">{{ vinculos|length }}</span></div>
+    {% if vinculos %}<ul class="worklist">{% for v in vinculos %}<li><a href="{% url 'painel:cliente' v.cliente_id %}"><span class="worklist-main"><strong>{{ v.cliente.razao_social }}</strong><span class="row-sub num-data">{{ v.cnpj_atual|cnpj|default:"Sem CNPJ" }} · desde {{ v.data_inicio|date:"d/m/Y" }}</span></span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
+    {% else %}<div class="empty">Nenhum condomínio vinculado.</div>{% endif %}
+  </section>
+</div>
+{% endblock %}

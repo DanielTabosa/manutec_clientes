@@ -129,3 +129,16 @@ Pedida pelo usuário em 14/10/2026, depois de aprovar o teste real da etapa 3 (b
 - **Segunda entrega (até 31/10):** cadastro e edição de cliente com consulta de CNPJ/CEP, contatos, administradoras e configuração de destinatários na interface própria. Até lá, "Novo cliente", "Editar cadastro" e "Configurar" abrem o admin.
 
 Validação: 70 testes Django/SQLite (4 novos da interface: login e anônimo, permissões, lista/busca/ficha, fluxo completo pela interface). `backend/verificar_interface.cjs` (Playwright/Edge) em banco PostgreSQL descartável com dados fictícios: desktop, celular sem rolagem horizontal e modo escuro, com capturas inspecionadas. O banco foi removido. Nenhuma migration nova.
+
+### Segunda entrega da interface — 14/10/2026
+
+Aprovada pelo usuário depois de ver a primeira; a discussão da paleta de cores ficou para depois, a pedido dele. Entregue antes da meta de 31/10.
+
+- **Clientes:** cadastro novo com consulta automática de CNPJ e CEP (`/clientes/novo/`), edição do cadastro, troca de CNPJ com histórico e vínculo/troca/encerramento de administradora. Contatos do condomínio: novo e edição; o encerramento é pela data de encerramento e retira o contato dos destinatários, com histórico preservado.
+- **Administradoras:** lista com busca, ficha (contatos com as categorias do padrão e condomínios administrados), cadastro e edição, contatos novos e editados, e encerramento global de contato com confirmação.
+- **Destinatários:** configuração por condomínio e padrão da administradora (`/clientes/<id>/destinatarios/`, `/administradoras/<id>/destinatarios/`), com modo, categorias por contato, "todas", parada local, resultado efetivo, padrão herdado e histórico. No celular, cada contato vira um cartão.
+- **Reaproveitamento sem mudança de regra:** mesmos formulários (`clientes/forms.py`), serviços (`cadastrar_cliente`, `trocar_cnpj`, `alterar_administradora`, `encerrar_global`) e scripts de consulta (`cadastro.js`, `cep.js`). A tela de destinatários foi extraída para `clientes/destinatarios_fluxo.py`, usada também pelo admin. Consultas de CNPJ/CEP têm rotas próprias do painel (`/consultas/cnpj/`, `/consultas/cep/`), sem exigir acesso de equipe ao admin.
+- Rótulos dos campos de cliente acentuados na interface (o modelo não tem `verbose_name`; nenhuma migration).
+- Fora desta entrega: responsabilidades (função de contato da administradora por condomínio) continuam no admin.
+
+Validação: 75 testes Django/SQLite (5 novos de cadastros: cliente/CNPJ/administradora, contatos e encerramento, destinatários com conflito de revisão, administradoras e encerramento global, consultas e permissões), 56 testes Conta Azul e detector Impeccable sem apontamentos. `backend/verificar_cadastros.cjs` (Playwright/Edge) em banco descartável: novo cliente com consulta real de CNPJ público, erros de validação, contato, destinatários, administradoras; celular sem rolagem horizontal. O banco foi removido.

@@ -1,0 +1,32 @@
+{% extends "painel/base.html" %}
+{% load static %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block conteudo %}
+<nav class="crumbs" aria-label="Você está em">{% for nome, url in crumbs %}<a href="{{ url }}">{{ nome }}</a><span aria-hidden="true">›</span>{% endfor %}<span>{{ titulo }}</span></nav>
+<div class="page-head"><div><h1>{{ titulo }}</h1>{% if descricao %}<p class="lead">{{ descricao }}</p>{% endif %}</div></div>
+
+<section class="card form-card">
+  <form method="post" class="card-body" novalidate {% if consultas %}id="cadastro-cliente" data-consulta-url="{% url 'painel:consulta_cnpj' %}"{% endif %}>{% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><div>{% for e in form.non_field_errors %}{{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div></div>{% endif %}
+    {% if form.errors and not form.non_field_errors %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><span>Confira os campos destacados.</span></div>{% endif %}
+    {% if aviso %}<div class="alert alert-warn"><svg class="i"><use href="#i-info"/></svg><span>{{ aviso }}</span></div>{% endif %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+    <div class="form-grid">
+      {% for field in form.visible_fields %}
+      <div class="field{% if field.errors %} field-erro{% endif %}{% if field.name in 'observacoes razao_social logradouro acao administradora' %} field-largo{% endif %}" data-campo="{{ field.name }}">
+        <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="opcional">(opcional)</span>{% endif %}</label>
+        {{ field }}
+        {% if field.name == 'cnpj' and consultas %}<button type="button" class="btn btn-sm" id="consultar-cnpj">Consultar CNPJ</button><p class="hint" id="consulta-status" role="status" aria-live="polite"></p>{% endif %}
+        {% for e in field.errors %}<p class="field-msg" role="alert">{{ e }}</p>{% endfor %}
+        {% if field.help_text and not field.name == 'cnpj' or field.help_text and not consultas %}<p class="hint">{{ field.help_text }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="foot-actions" style="margin-top:24px"><a class="btn" href="{{ voltar }}">Cancelar</a><button type="submit" class="btn btn-primary">{{ rotulo }}</button></div>
+  </form>
+</section>
+{% if consultas %}
+<script src="{% static 'clientes/cadastro.js' %}" defer></script>
+<script id="consulta-cep-script" src="{% static 'clientes/cep.js' %}" data-url="{% url 'painel:consulta_cep' %}" defer></script>
+{% endif %}
+{% endblock %}

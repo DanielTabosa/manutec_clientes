@@ -40,6 +40,7 @@
     <ul class="nav-list">
       <li><a class="nav-link" href="{% url 'painel:inicio' %}" {% if secao == 'inicio' %}aria-current="page"{% endif %}><svg class="i"><use href="#i-home"/></svg>Início</a></li>
       {% if perms.clientes.view_cliente %}<li><a class="nav-link" href="{% url 'painel:clientes' %}" {% if secao == 'clientes' %}aria-current="page"{% endif %}><svg class="i"><use href="#i-building"/></svg>Clientes</a></li>{% endif %}
+      {% if perms.clientes.view_administradora %}<li><a class="nav-link" href="{% url 'painel:administradoras' %}" {% if secao == 'administradoras' %}aria-current="page"{% endif %}><svg class="i"><use href="#i-users"/></svg>Administradoras</a></li>{% endif %}
       {% if perms.clientes.view_preparacaoenvio %}<li><a class="nav-link" href="{% url 'painel:preparacoes' %}" {% if secao == 'preparacoes' %}aria-current="page"{% endif %}><svg class="i"><use href="#i-send"/></svg>Envio de documentos</a></li>{% endif %}
     </ul>
     {% if user.is_staff %}

@@ -7,7 +7,7 @@
     <h1>Clientes</h1>
     <p class="lead">{% if request.GET.preparar %}Escolha o cliente para preparar o envio de documentos.{% else %}Condomínios atendidos, com CNPJ e administradora atuais.{% endif %}</p>
   </div>
-  {% if perms.clientes.add_cliente %}<div class="actions"><a class="btn" href="{% url 'admin:clientes_cliente_add' %}"><svg class="i"><use href="#i-plus"/></svg>Novo cliente</a></div>{% endif %}
+  {% if perms.clientes.add_cliente %}<div class="actions"><a class="btn" href="{% url 'painel:cliente_novo' %}"><svg class="i"><use href="#i-plus"/></svg>Novo cliente</a></div>{% endif %}
 </div>
 
 <section class="card">

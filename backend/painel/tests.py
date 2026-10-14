@@ -73,3 +73,105 @@ class InterfaceTests(BasePreparacao):
         lista = self.client.get(reverse('painel:preparacoes'), {'status': 'confirmada'}).content.decode()
         self.assertIn('Condomínio QA', lista)
         self.assertNotIn('Condomínio QA', self.client.get(reverse('painel:preparacoes'), {'status': 'cancelada'}).content.decode())
+
+
+class CadastrosTests(BasePreparacao):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def dados_cliente(self, **extra):
+        dados = dict(cnpj='22.333.444/0001-55', razao_social='Condomínio Novo', nome_fantasia='', cep='60000-000',
+                     logradouro='Rua A', numero='10', complemento='', bairro='Centro', cidade='Fortaleza', estado='CE',
+                     data_inicio='2024-01-01', observacoes='')
+        dados.update(extra)
+        return dados
+
+    def test_cadastro_edicao_cnpj_e_administradora(self):
+        from clientes.models import Cliente, Administradora
+        url = reverse('painel:cliente_novo')
+        self.assertContains(self.client.get(url), 'Consultar CNPJ')
+        resposta = self.client.post(url, self.dados_cliente())
+        novo = Cliente.objects.get(razao_social='Condomínio Novo')
+        self.assertRedirects(resposta, reverse('painel:cliente', args=[novo.pk]))
+        self.assertEqual(novo.historico_cnpj.get().cnpj, '22333444000155')
+        self.assertContains(self.client.post(url, self.dados_cliente(razao_social='Outro')), 'já está cadastrado')
+        self.assertContains(self.client.post(url, self.dados_cliente(cnpj='33444555000166', logradouro='')), 'Confira os campos')
+        self.client.post(reverse('painel:cliente_editar', args=[novo.pk]), self.dados_cliente(razao_social='Condomínio Renomeado'))
+        novo.refresh_from_db()
+        self.assertEqual(novo.razao_social, 'Condomínio Renomeado')
+        self.client.post(reverse('painel:cliente_cnpj', args=[novo.pk]), {'cnpj': '44555666000177', 'data_inicio': '2025-01-01'})
+        self.assertEqual(novo.historico_cnpj.filter(data_fim__isnull=True).get().cnpj, '44555666000177')
+        self.assertEqual(novo.historico_cnpj.count(), 2)
+        outra = Administradora.objects.create(razao_social='Outra Empresa')
+        self.client.post(reverse('painel:cliente_administradora', args=[novo.pk]), {'acao': 'vincular', 'administradora': outra.pk, 'data': '2025-02-01'})
+        self.assertEqual(novo.historico_administradoras.get(data_fim__isnull=True).administradora, outra)
+        ficha = self.client.get(reverse('painel:cliente', args=[novo.pk])).content.decode()
+        self.assertIn('Outra Empresa', ficha)
+        self.assertIn('44.555.666/0001-77', ficha)
+
+    def test_contatos_do_condominio_e_encerramento(self):
+        from clientes.models import Contato
+        from clientes import destinatarios as d
+        self.client.post(reverse('painel:contato_novo', args=[self.c.pk]),
+                         {'nome': 'Fábio', 'funcao': 'Zelador', 'email': 'fabio@exemplo.test', 'data_inicio': '2024-01-01'})
+        self.assertTrue(Contato.objects.filter(nome='Fábio', cliente=self.c).exists())
+        ana = Contato.objects.get(nome='Ana')
+        self.client.post(reverse('painel:contato_editar', args=[ana.pk]),
+                         {'nome': 'Ana', 'email': 'ana@exemplo.test', 'data_inicio': '2020-01-01', 'data_fim': '2026-10-01'})
+        self.assertNotIn('Ana', [e['nome'] for e in d.efetivos(self.c.pk)])
+        self.assertContains(self.client.post(reverse('painel:contato_editar', args=[ana.pk]),
+                            {'nome': 'Ana', 'data_inicio': '2020-01-01', 'data_fim': '2019-01-01'}), 'anterior ao início')
+
+    def test_destinatarios_pela_interface(self):
+        from clientes.models import Contato
+        from clientes import destinatarios as d
+        url = reverse('painel:cliente_destinatarios', args=[self.c.pk])
+        pagina = self.client.get(url).content.decode()
+        for trecho in ('Quem recebe documentos', 'Resultado: quem recebe hoje', 'Histórico de alterações', 'Sem e-mail'):
+            self.assertIn(trecho, pagina)
+        ana = Contato.objects.get(nome='Ana')
+        atual = d.atual(cliente_id=self.c.pk)
+        resposta = self.client.post(url, {'numero': atual.numero, 'vinculo_id': self.v.pk, 'modo': 'usar',
+                                          'form-TOTAL_FORMS': 1, 'form-INITIAL_FORMS': 1, 'form-MIN_NUM_FORMS': 0, 'form-MAX_NUM_FORMS': 1000,
+                                          'form-0-contato_id': ana.pk, 'form-0-boleto': 'on'})
+        self.assertRedirects(resposta, url)
+        ana_ef = [e for e in d.efetivos(self.c.pk) if e['nome'] == 'Ana'][0]
+        self.assertEqual(ana_ef['categorias'], ['boleto'])
+        conflito = self.client.post(url, {'numero': atual.numero, 'vinculo_id': self.v.pk, 'modo': 'usar',
+                                          'form-TOTAL_FORMS': 0, 'form-INITIAL_FORMS': 0, 'form-MIN_NUM_FORMS': 0, 'form-MAX_NUM_FORMS': 1000})
+        self.assertContains(conflito, 'outro operador')
+        self.assertContains(self.client.get(reverse('painel:administradora_destinatarios', args=[self.a.pk])), 'Padrão da Empresa QA')
+
+    def test_administradoras_contatos_e_encerramento_global(self):
+        from clientes.models import Administradora, ContatoAdministradora
+        from clientes import destinatarios as d
+        lista = self.client.get(reverse('painel:administradoras')).content.decode()
+        self.assertIn('Empresa QA', lista)
+        ficha = self.client.get(reverse('painel:administradora', args=[self.a.pk])).content.decode()
+        for trecho in ('Bruno', 'Carla', 'Condomínio QA', 'nota fiscal'):
+            self.assertIn(trecho, ficha)
+        self.client.post(reverse('painel:administradora_nova'), {'cnpj': '', 'razao_social': 'Nova Adm', 'nome_fantasia': '', 'telefone': '', 'email': ''})
+        nova = Administradora.objects.get(razao_social='Nova Adm')
+        self.client.post(reverse('painel:contato_adm_novo', args=[nova.pk]), {'nome': 'Gil', 'email': 'gil@exemplo.test', 'telefone': ''})
+        self.assertTrue(nova.contatos.filter(nome='Gil').exists())
+        bruno = ContatoAdministradora.objects.get(nome='Bruno')
+        self.assertEqual(self.client.get(reverse('painel:contato_adm_encerrar', args=[bruno.pk])).status_code, 405)
+        self.client.post(reverse('painel:contato_adm_encerrar', args=[bruno.pk]))
+        bruno.refresh_from_db()
+        self.assertIsNotNone(bruno.encerrado_em)
+        self.assertNotIn('Bruno', [e['nome'] for e in d.efetivos(self.c.pk)])
+
+    def test_consultas_e_permissoes(self):
+        from unittest.mock import patch
+        operador = User.objects.create_user('sem', password='somente-teste')
+        operador.user_permissions.add(Permission.objects.get(codename='view_cliente'))
+        self.client.force_login(operador)
+        bloqueadas = [('cliente_novo', []), ('cliente_editar', [self.c.pk]), ('cliente_destinatarios', [self.c.pk]),
+                      ('administradoras', []), ('consulta_cnpj', [])]
+        for nome, args in bloqueadas:
+            self.assertEqual(self.client.get(reverse('painel:' + nome, args=args)).status_code, 403, nome)
+        self.client.force_login(self.user)
+        with patch('painel.cadastros.consultar_cnpj', return_value={'razao_social': 'X'}):
+            self.assertEqual(self.client.get(reverse('painel:consulta_cnpj'), {'cnpj': '22333444000155'}).json(), {'razao_social': 'X'})
+        self.assertEqual(self.client.get(reverse('painel:consulta_cep'), {'cep': '123'}).status_code, 400)

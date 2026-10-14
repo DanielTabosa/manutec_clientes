@@ -1,0 +1,28 @@
+{% extends "painel/base.html" %}
+{% load painel %}
+{% block titulo %}Administradoras{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div><h1>Administradoras</h1><p class="lead">Empresas que administram condomínios, com seus contatos e a lista padrão de destinatários.</p></div>
+  {% if perms.clientes.add_administradora %}<div class="actions"><a class="btn btn-primary" href="{% url 'painel:administradora_nova' %}"><svg class="i"><use href="#i-plus"/></svg>Nova administradora</a></div>{% endif %}
+</div>
+<section class="card">
+  <form class="toolbar" method="get" role="search">
+    <div class="search"><svg class="i"><use href="#i-search"/></svg><label class="sr" for="q">Buscar administradora</label><input class="input" type="search" id="q" name="q" value="{{ termo }}" placeholder="Nome ou CNPJ" autocomplete="off"></div>
+    <span class="muted small">{{ pagina.paginator.count }} administradora(s)</span>
+  </form>
+  {% if pagina.object_list %}
+  <div class="table-wrap"><table class="table responsive">
+    <thead><tr><th>Administradora</th><th>CNPJ</th><th>Contato</th><th class="num">Condomínios</th><th class="num">Contatos ativos</th></tr></thead>
+    <tbody>{% for a in pagina %}<tr data-administradora>
+      <td data-label="Administradora"><a class="row-link" href="{% url 'painel:administradora' a.pk %}">{{ a.razao_social }}</a>{% if a.nome_fantasia %}<div class="row-sub">{{ a.nome_fantasia }}</div>{% endif %}</td>
+      <td data-label="CNPJ" class="num-data">{{ a.cnpj|cnpj|default:"—" }}</td>
+      <td data-label="Contato" class="wrap-any">{{ a.email|default:"" }}{% if a.email and a.telefone %}<br>{% endif %}{{ a.telefone|default:"" }}{% if not a.email and not a.telefone %}—{% endif %}</td>
+      <td data-label="Condomínios" class="num">{{ a.condominios }}</td>
+      <td data-label="Contatos ativos" class="num">{{ a.contatos_ativos }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% include "painel/_paginas.html" %}
+  {% else %}<div class="empty"><strong>Nenhuma administradora encontrada</strong>{% if termo %}Confira a busca.{% else %}Cadastre a primeira administradora.{% endif %}</div>{% endif %}
+</section>
+{% endblock %}
