@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-14T22:30:24.136Z",
+        "reason": "Usuário autorizou em 14/10 todas as sugestões, incluindo baixar a Inter; ferramenta interna de operação prioriza legibilidade de tabelas e números"
+      }
+    ]
+  }
+}
