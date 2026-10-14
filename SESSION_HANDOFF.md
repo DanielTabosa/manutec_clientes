@@ -12,7 +12,7 @@
 4. ⏸ Implantação **interrompida pelo usuário em 14/10** antes de qualquer mudança; retomar só quando ele pedir. Pendente decisão dele: hospedagem (VPS recomendado; cPanel só com Python App + PostgreSQL; ou PC do escritório) e acesso (internet ou só escritório). Também a renovação de token do Conta Azul (hoje manual).
    - Antes da implantação, sugerido: envio real de uma preparação completa (boleto + nota) para um contato com o e-mail do próprio usuário, ainda não feito.
 5. Homologação com a base definitiva e treinamento. **Agora com importação CSV** (`/importar/`): o usuário pode carregar a base definitiva em lote (administradoras → clientes → contatos); o que faltar aparece como pendência ("Cadastro x/5").
-   - Pendente: conferir os contratos ativos com dados reais (token do Conta Azul expirado em 14/10; renovação manual com `contaazul_auth.py --producao`).
+   - Contratos ativos conferidos com dados reais em 14/10: 102 ativos, 101 sem cadastro na base de teste. Sugestão em aberto: importar clientes direto do Conta Azul (pessoas têm CNPJ, e-mail e telefone).
 
 ## Estado técnico
 

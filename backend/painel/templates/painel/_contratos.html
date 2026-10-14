@@ -1,0 +1,10 @@
+{% if contratos %}
+<div class="card-head"><div><h2 id="t-ctr">Contratos ativos</h2><p class="muted small">Conta Azul{% if contratos.ok %} · {{ contratos.com }} com cadastro aqui{% endif %}</p></div>
+  <div class="actions">{% if contratos.ok %}<div class="numero-grande pequeno"><span>{{ contratos.total }}</span></div>{% endif %}<button type="button" class="btn btn-sm btn-ghost" data-atualizar-contratos aria-label="Atualizar contratos"><svg class="i"><use href="#i-refresh"/></svg></button></div></div>
+{% if not contratos.ok %}<div class="card-body"><div class="alert alert-warn" style="margin:0"><svg class="i"><use href="#i-alert"/></svg><span>{{ contratos.erro }}</span></div></div>
+{% elif contratos.sem %}
+<a class="faixa-aviso" href="#t-ctr"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>{{ contratos.total_sem }} contrato(s) de clientes sem cadastro aqui</a>
+<ul class="worklist">{% for c in contratos.sem %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ c.cliente|default:"Cliente sem nome" }}</strong><span class="row-sub">Contrato {{ c.numero|default:"—" }}{% if c.vencimento %} · próximo vencimento {{ c.vencimento }}{% endif %}</span></span>
+  {% if perms.clientes.add_cliente %}<a class="btn btn-sm" href="{% url 'painel:cliente_novo' %}?razao_social={{ c.cliente|urlencode }}{% if c.documento %}&cnpj={{ c.documento }}{% endif %}"><svg class="i"><use href="#i-plus"/></svg>Cadastrar</a>{% endif %}</div></li>{% endfor %}</ul>
+{% else %}<div class="empty"><strong>Todos os contratos têm cadastro</strong>Cada contrato ativo corresponde a um cliente da base.</div>{% endif %}
+{% endif %}

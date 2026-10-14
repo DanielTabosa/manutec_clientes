@@ -53,13 +53,28 @@ def carregar(forcar=False):
                 break
         else:
             raise ValueError()
+        # O contrato só traz id e nome do cliente; o CNPJ vem da lista de pessoas (GET /v1/pessoas).
+        documentos = {}
+        for pagina in range(1, 31):
+            dados = get('/v1/pessoas', {'pagina': pagina, 'tamanho_pagina': 50})
+            lote = dados.get('items') if isinstance(dados.get('items'), list) else dados.get('itens')
+            if not isinstance(lote, list):
+                raise ValueError()
+            for pessoa in lote:
+                if isinstance(pessoa, dict) and pessoa.get('id'):
+                    documentos[str(pessoa['id'])] = _documento(pessoa)
+            if len(lote) < 50:
+                break
+        else:
+            raise ValueError()
         ativos = []
         for c in itens:
             if c.get('status') != 'ATIVO':
                 continue
             cliente = c.get('cliente') if isinstance(c.get('cliente'), dict) else {}
             ativos.append(dict(numero=c.get('numero'), cliente=str(cliente.get('nome') or '').strip(),
-                               documento=_documento(cliente), vencimento=c.get('proximo_vencimento') or '',
+                               documento=_documento(cliente) or documentos.get(str(cliente.get('id')), ''),
+                               vencimento=c.get('proximo_vencimento') or '',
                                valor=c.get('total_proximo_vencimento', c.get('total'))))
         resultado = dict(ok=True, erro='', itens=ativos, atualizado=date.today())
         cache.set(CHAVE_CACHE, resultado, VALIDADE)

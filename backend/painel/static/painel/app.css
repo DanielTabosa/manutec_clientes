@@ -327,6 +327,10 @@ input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
 .texto-erro { color: var(--error-text); }
 .dicas li { align-items: flex-start; padding: 4px 0; color: var(--text-2); }
 .dicas .i { color: var(--ok-dot); margin-top: 3px; }
+.esqueleto { display: grid; gap: 10px; padding: var(--s-4) var(--s-5) var(--s-5); }
+.esqueleto span { height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-sunken), var(--surface-hover), var(--surface-sunken)); background-size: 200% 100%; animation: brilho 1.2s ease-in-out infinite; }
+.esqueleto span:nth-child(2) { width: 80%; } .esqueleto span:nth-child(3) { width: 60%; }
+@keyframes brilho { to { background-position: -200% 0; } }
 .acoes-volta { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
 
 /* Lista de trabalho */

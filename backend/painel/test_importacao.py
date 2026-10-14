@@ -123,12 +123,15 @@ class InicioPainelTests(BasePreparacao):
     def test_contratos_ativos_cruzados_com_a_base(self):
         HistoricoCNPJ.objects.create(cliente=self.c, cnpj='11222333000181', data_inicio=date(2020, 1, 1))
         itens = {'itens': [
-            {'status': 'ATIVO', 'numero': 1, 'cliente': {'nome': 'Condominio QA', 'documento': '11.222.333/0001-81'}},
+            {'status': 'ATIVO', 'numero': 1, 'cliente': {'id': 'p1', 'nome': 'Outro Nome Qualquer'}},
             {'status': 'ATIVO', 'numero': 2, 'cliente': {'nome': 'Edifício Sem Cadastro'}},
             {'status': 'INATIVO', 'numero': 3, 'cliente': {'nome': 'Antigo'}},
         ]}
-        with patch('contaazul_boleto._cliente_http', return_value=lambda *a, **k: itens):
-            pagina = self.client.get(reverse('painel:inicio')).content.decode()
+        pessoas = {'items': [{'id': 'p1', 'documento': '11.222.333/0001-81'}, {'id': 'p2', 'documento': ''}]}
+        with patch('contaazul_boleto._cliente_http', return_value=lambda rota, *a, **k: pessoas if 'pessoas' in rota else itens):
+            self.assertContains(self.client.get(reverse('painel:inicio')), 'data-pendente')
+            pagina = self.client.get(reverse('painel:contratos_resumo')).content.decode()
+            self.assertNotIn('data-pendente', self.client.get(reverse('painel:inicio')).content.decode())  # cache
         self.assertIn('Contratos ativos', pagina)
         self.assertIn('Edifício Sem Cadastro', pagina)
         self.assertNotIn('Antigo', pagina)
@@ -136,4 +139,4 @@ class InicioPainelTests(BasePreparacao):
         cache.clear()
         from urllib.error import HTTPError
         with patch('contaazul_boleto._cliente_http', side_effect=HTTPError('https://x', 401, 'n', None, None)):
-            self.assertContains(self.client.get(reverse('painel:inicio')), 'Autorização do Conta Azul expirada')
+            self.assertContains(self.client.get(reverse('painel:contratos_resumo')), 'Autorização do Conta Azul expirada')

@@ -180,7 +180,7 @@ Pedido do usuário: o início deve focar em clientes, administradoras e contrato
   - `GET /v1/contratos` somente leitura, status ATIVO, até 10 páginas de 50, cache de 15 minutos (erros por 2 minutos) e botão de atualizar.
   - Cruzamento com a base pelo CNPJ atual e, sem documento, pelo nome normalizado (único). Contratos sem cadastro têm botão "Cadastrar" com razão social e CNPJ pré-preenchidos.
   - Autorização expirada vira um aviso, sem travar a tela.
-  - Estrutura baseada no projeto `manutec-faturamento`. A sonda real de 14/10 retornou HTTP 401 (token expirado, renovação manual): **falta conferir com dados reais** depois de renovar.
+  - **Conferido com dados reais em 14/10, depois que o usuário renovou o token:** o contrato traz só `cliente.id` e `cliente.nome`, então o CNPJ vem de `GET /v1/pessoas` (585 pessoas, com documento, e-mail e telefone), no mesmo cache. Resultado: 102 contratos ativos, todos com CNPJ; com a base de teste (3 clientes), 1 cruzado por CNPJ e 101 sem cadastro, cada um com "Cadastrar" pré-preenchido com nome e CNPJ. A consulta leva cerca de 11 s sem cache, então o quadro carrega em segundo plano (`/contratos/resumo/`) e o início abre na hora.
 - **Importação CSV** (`painel/importacao.py`, telas em `painel/importar.py`, menu "Importar CSV"):
   - Tipos: clientes, contatos dos condomínios, administradoras e contatos das administradoras. Cada tipo exige a permissão de adicionar correspondente.
   - Lê UTF-8 ou Windows-1252, com separador ; , ou tabulação; até 2 MB e 5.000 linhas.

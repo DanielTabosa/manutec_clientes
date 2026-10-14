@@ -46,9 +46,11 @@ def inicio(request):
         for c in ctx['clientes_recentes']:
             c.pontos = completude.pontos(c)
         if servico.contaazul_config():
-            dados = contratos_ca.carregar(forcar=request.GET.get('atualizar') == 'contratos')
-            com, sem = contratos_ca.cruzar(dados['itens']) if dados['ok'] else ([], [])
-            ctx['contratos'] = dict(dados, total=len(dados['itens']), com=len(com), sem=sem[:6], total_sem=len(sem))
+            from django.core.cache import cache
+            if cache.get(contratos_ca.CHAVE_CACHE) is not None:
+                ctx['contratos'] = _resumo_contratos(False)
+            else:
+                ctx['contratos_async'] = True
     if ctx['ve_administradoras']:
         adms = Administradora.objects.annotate(condominios=Count('vinculos', filter=Qd(vinculos__data_fim__isnull=True), distinct=True))
         ctx['adm'] = dict(
@@ -204,3 +206,19 @@ def busca(request):
                                          PreparacaoEnvio.objects.select_related('cliente').filter(filtro)[:8]]
     total = sum(len(v) for v in resultados.values())
     return render(request, 'painel/busca.html', dict(secao='', termo_global=termo, termo=termo, total=total, **resultados))
+
+
+def _resumo_contratos(forcar):
+    from clientes import contratos as contratos_ca
+    dados = contratos_ca.carregar(forcar=forcar)
+    com, sem = contratos_ca.cruzar(dados['itens']) if dados['ok'] else ([], [])
+    return dict(dados, total=len(dados['itens']), com=len(com), sem=sem[:6], total_sem=len(sem))
+
+
+@exige('clientes.view_cliente')
+def contratos_resumo(request):
+    """Quadro de contratos ativos carregado em segundo plano pelo início (consulta pode levar alguns segundos)."""
+    if not servico.contaazul_config():
+        return render(request, 'painel/_contratos.html', dict(contratos=None))
+    return render(request, 'painel/_contratos.html', dict(contratos=_resumo_contratos(request.GET.get('atualizar') == '1')))
+

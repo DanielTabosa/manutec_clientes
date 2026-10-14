@@ -34,6 +34,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && menu.classList.contains('aberto')) { fechar(); botao.focus(); } });
   }
 
+  // Contratos ativos: carregados em segundo plano (a consulta ao Conta Azul pode levar alguns segundos)
+  const quadro = document.getElementById('quadro-contratos');
+  if (quadro) {
+    const carregar = forcar => {
+      quadro.setAttribute('aria-busy', 'true');
+      fetch(quadro.dataset.carregar + (forcar ? '?atualizar=1' : ''), {headers: {'X-Requested-With': 'fetch'}})
+        .then(r => r.ok ? r.text() : Promise.reject())
+        .then(html => { quadro.innerHTML = html; })
+        .catch(() => { quadro.querySelector('.muted.small')?.replaceChildren('Não foi possível consultar agora.'); })
+        .finally(() => quadro.removeAttribute('aria-busy'));
+    };
+    quadro.addEventListener('click', e => { if (e.target.closest('[data-atualizar-contratos]')) carregar(true); });
+    if (quadro.hasAttribute('data-pendente')) carregar(false);
+  }
+
   // Busca global: Ctrl+K / Cmd+K ou "/" fora de campos
   const busca = document.getElementById('busca-global');
   document.addEventListener('keydown', e => {
