@@ -1,0 +1,45 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Prévia da importação{% endblock %}
+{% block conteudo %}
+<nav class="crumbs" aria-label="Você está em"><a href="{% url 'painel:importar' %}">Importar CSV</a><span aria-hidden="true">›</span><span>Prévia</span></nav>
+<div class="page-head">
+  <div><h1>Prévia: {{ nome_tipo }}</h1><p class="lead">{{ arquivo }} · {{ total }} linha(s). Nada foi gravado ainda.</p></div>
+</div>
+{% if erro %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><span>{{ erro }}</span></div>{% endif %}
+
+<form method="post" class="stack">{% csrf_token %}
+  <section class="card" aria-labelledby="t-map">
+    <div class="card-head"><div><h2 id="t-map">2. Colunas reconhecidas</h2><p class="muted small">Confira de qual coluna do arquivo vem cada informação. Ajuste e clique em “Atualizar prévia”.</p></div>
+      <button type="submit" name="acao" value="remapear" class="btn btn-sm"><svg class="i"><use href="#i-refresh"/></svg>Atualizar prévia</button></div>
+    <div class="card-body"><div class="mapa-colunas">
+      {% for c in campos %}<div class="field"><label for="col_{{ c.campo }}">{{ c.rotulo }}{% if c.obrigatorio %} <span class="chip chip-info" style="padding:0 7px">obrigatório</span>{% endif %}</label>
+        <select class="select{% if c.coluna is None %} nao-mapeado{% endif %}" id="col_{{ c.campo }}" name="col_{{ c.campo }}"><option value="">— não usar —</option>{% for i, nome in cabecalhos %}<option value="{{ i }}" {% if c.coluna == i %}selected{% endif %}>{{ nome|default:"(sem nome)" }}</option>{% endfor %}</select></div>{% endfor %}
+    </div></div>
+  </section>
+
+  <section class="card" aria-labelledby="t-lin">
+    <div class="card-head"><div><h2 id="t-lin">3. Linhas</h2><p class="muted small">{% if total > 300 %}Mostrando as 300 primeiras de {{ total }}; todas serão importadas.{% else %}Todas as linhas do arquivo.{% endif %}</p></div></div>
+    <div class="card-body" style="padding-bottom:0"><div class="summary">
+      <span><b>{{ contagem.novo }}</b>novo(s) a importar</span>
+      <span><b>{{ com_pendencia }}</b>com pendências</span>
+      <span><b>{{ contagem.existente }}</b>já existente(s), ignorado(s)</span>
+      <span><b>{{ contagem.erro }}</b>com erro, não importado(s)</span>
+    </div></div>
+    {% if analise %}
+    <div class="table-wrap" style="margin-top:16px"><table class="table responsive">
+      <thead><tr><th>Linha</th><th>Registro</th><th>Situação</th><th>Observações</th></tr></thead>
+      <tbody>{% for a in analise %}<tr data-linha="{{ a.status }}">
+        <td data-label="Linha" class="num-data">{{ a.linha }}</td>
+        <td data-label="Registro"><strong>{{ a.titulo|default:"—" }}</strong>{% if a.dados.cnpj %}<div class="row-sub num-data">{{ a.dados.cnpj }}</div>{% endif %}{% if a.dados.cliente_nome %}<div class="row-sub">{{ a.dados.cliente_nome }}</div>{% endif %}{% if a.dados.administradora_nome %}<div class="row-sub">{{ a.dados.administradora_nome }}</div>{% endif %}</td>
+        <td data-label="Situação">{% if a.status == 'novo' %}<span class="chip chip-ok chip-dot">Novo</span>{% elif a.status == 'existente' %}<span class="chip chip-dot">Já existe</span>{% else %}<span class="chip chip-error chip-dot">Erro</span>{% endif %}</td>
+        <td data-label="Observações" class="small {% if a.status == 'erro' %}texto-erro{% else %}muted{% endif %}">{{ a.notas|join:"; "|default:"—" }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+    <div class="card-body" style="border-top:1px solid var(--border)"><div class="foot-actions">
+      <button type="submit" name="acao" value="descartar" class="btn" formnovalidate>Descartar</button>
+      <button type="submit" name="acao" value="confirmar" class="btn btn-confirm" {% if not contagem.novo or erro %}disabled{% endif %} data-confirmar-acao><svg class="i"><use href="#i-check"/></svg>Importar {{ contagem.novo }} registro(s)</button>
+    </div></div>
+  </section>
+</form>
+{% endblock %}

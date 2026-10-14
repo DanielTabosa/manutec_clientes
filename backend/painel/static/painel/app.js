@@ -108,9 +108,13 @@ document.addEventListener('DOMContentLoaded', () => {
     atualizar();
   }
 
-  document.querySelectorAll('[data-confirmar-acao]').forEach(form => {
+  document.querySelectorAll('form[data-confirmar-acao]').forEach(form => {
     form.addEventListener('submit', e => { if (!window.confirm(form.dataset.confirmarAcao)) e.preventDefault(); });
   });
+  // Botão com confirmação própria (ex.: importar): pergunta com o texto do botão
+  document.querySelectorAll('button[data-confirmar-acao]').forEach(b => b.addEventListener('click', e => {
+    if (!window.confirm((b.dataset.confirmarAcao || b.textContent.trim()) + '?')) e.preventDefault();
+  }));
 
   // Carregamento no botão e proteção contra envio duplo
   document.querySelectorAll('form[method="post"]').forEach(form => {

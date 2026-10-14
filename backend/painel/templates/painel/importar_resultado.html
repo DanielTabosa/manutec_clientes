@@ -1,0 +1,26 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Importação concluída{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div><h1>Importação concluída</h1><p class="lead">{{ nome_tipo }} · {{ r.arquivo }}</p></div>
+  <div class="actions"><a class="btn" href="{% url 'painel:importar' %}"><svg class="i"><use href="#i-upload"/></svg>Importar outro arquivo</a><a class="btn btn-primary" href="{{ destino }}">Ver cadastros<svg class="i"><use href="#i-arrow"/></svg></a></div>
+</div>
+<section class="card card-pad">
+  <div class="summary">
+    <span><b>{{ r.criados }}</b>cadastrado(s)</span>
+    <span><b>{{ r.existentes }}</b>já existente(s), ignorado(s)</span>
+    <span><b>{{ r.erros|length|add:r.falhas|length }}</b>não importado(s)</span>
+  </div>
+  {% if r.criados %}<p class="muted small" style="margin:12px 0 0">Os cadastros com informações faltando aparecem com pendências na lista de clientes e no início; complete quando tiver os dados.</p>{% endif %}
+</section>
+{% if r.erros or r.falhas %}
+<section class="card" style="margin-top:24px" aria-labelledby="t-nao">
+  <div class="card-head"><h2 id="t-nao">Linhas não importadas</h2></div>
+  <div class="table-wrap"><table class="table responsive">
+    <thead><tr><th>Linha</th><th>Registro</th><th>Motivo</th></tr></thead>
+    <tbody>{% for linha, titulo, motivo in r.erros %}<tr><td data-label="Linha" class="num-data">{{ linha }}</td><td data-label="Registro">{{ titulo|default:"—" }}</td><td data-label="Motivo" class="texto-erro small">{{ motivo }}</td></tr>{% endfor %}
+    {% for linha, titulo, motivo in r.falhas %}<tr><td data-label="Linha" class="num-data">{{ linha }}</td><td data-label="Registro">{{ titulo|default:"—" }}</td><td data-label="Motivo" class="texto-erro small">{{ motivo }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

@@ -104,7 +104,8 @@ def consulta_cep(request):
 
 @exige('clientes.add_cliente')
 def cliente_novo(request):
-    form = CadastroClienteForm(request.POST or None)
+    iniciais = {k: request.GET[k] for k in ('razao_social', 'cnpj') if request.GET.get(k)}
+    form = CadastroClienteForm(request.POST or None, initial=iniciais or None)
     if request.method == 'POST' and form.is_valid():
         try:
             obj = cadastrar_cliente(**form.cleaned_data)

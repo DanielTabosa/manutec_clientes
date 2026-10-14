@@ -396,3 +396,8 @@ Verificação visual: `backend/verificar_postgresql.py --keep`, servidor local c
 Acesse `http://127.0.0.1:8000/` depois de `manage.py runserver` e entre com o mesmo usuário do admin. Telas: início, clientes, ficha do cliente, envio de documentos e preparação. O admin (`/admin/`) segue como retaguarda. A lógica da preparação fica em `clientes/preparacao_fluxo.py`, compartilhada com o admin. Testes: `manage.py test clientes painel --settings=config.test_settings`. Verificação visual: `backend/verificar_interface.cjs` contra servidor local em banco descartável (`verificar_postgresql.py --keep`); remova o banco ao final.
 
 Cadastros na interface: clientes (novo/editar/CNPJ/administradora/contatos), administradoras (lista/ficha/contatos/encerramento global) e destinatários (condomínio e padrão). Verificação visual: `backend/verificar_cadastros.cjs`. Responsabilidades seguem no admin.
+
+## Importação em lote (CSV)
+
+Menu **Importar CSV** (`/importar/`): clientes, contatos dos condomínios, administradoras e contatos das administradoras. Envie o arquivo, confira a prévia (colunas reconhecidas e situação por linha) e confirme. Nada existente é sobrescrito. Há modelos para baixar em cada tipo. Ordem recomendada: administradoras → clientes → contatos. Verificação visual: `backend/verificar_importacao.cjs`.
+

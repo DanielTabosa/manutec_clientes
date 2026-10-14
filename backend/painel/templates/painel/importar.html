@@ -1,0 +1,36 @@
+{% extends "painel/base.html" %}
+{% block titulo %}Importar CSV{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Importar em lote</h1>
+    <p class="lead">Envie uma planilha em CSV. O sistema reconhece as colunas, mostra uma prévia linha a linha e só grava depois da sua confirmação. Nada existente é alterado.</p>
+  </div>
+</div>
+{% if erro %}<div class="alert alert-error" role="alert"><svg class="i"><use href="#i-alert"/></svg><span>{{ erro }}</span></div>{% endif %}
+
+<section class="card" aria-labelledby="t-env">
+  <div class="card-head"><div><h2 id="t-env">1. Escolha o que importar e o arquivo</h2><p class="muted small">CSV separado por ponto e vírgula ou vírgula, exportado do Excel ou do Google Planilhas. Até 2 MB e 5.000 linhas.</p></div></div>
+  <form method="post" enctype="multipart/form-data" class="card-body stack" id="form-importar">{% csrf_token %}
+    <fieldset class="tipos-importacao"><legend class="sr">Tipo de cadastro</legend>
+      {% for chave, t in tipos %}<label class="tipo-opcao"><input type="radio" name="tipo" value="{{ chave }}" {% if selecionado == chave or not selecionado and forloop.first %}checked{% endif %} required>
+        <span class="tipo-corpo"><strong>{{ t.nome }}</strong><span class="row-sub">{% for c, r, o, s in t.campos %}{% if o %}<b>{{ r }}</b>{% else %}{{ r }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+        <a class="small" href="{% url 'painel:importar_modelo' chave %}">Baixar modelo</a></span></label>{% endfor %}
+    </fieldset>
+    <div class="dropzone" style="grid-template-columns:1fr auto">
+      <div class="field"><label for="arquivo">Arquivo CSV</label><input type="file" id="arquivo" name="arquivo" accept=".csv,text/csv" required><p class="hint">Em negrito, as colunas obrigatórias. O que faltar no arquivo vira pendência no cadastro.</p></div>
+      <button type="submit" class="btn btn-primary"><svg class="i"><use href="#i-upload"/></svg>Analisar arquivo</button>
+    </div>
+  </form>
+</section>
+
+<section class="card card-pad" style="margin-top:24px" aria-labelledby="t-dicas">
+  <h2 id="t-dicas" style="margin-bottom:8px">Como funciona</h2>
+  <ul class="doc-list dicas">
+    <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Os nomes das colunas não precisam ser exatos: “Razão social”, “Condomínio” ou “Nome” são reconhecidos. Na prévia você ajusta o que não foi reconhecido.</li>
+    <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Clientes já cadastrados (mesmo CNPJ) e contatos repetidos são ignorados, sem sobrescrever nada.</li>
+    <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Ordem recomendada: administradoras → clientes → contatos dos condomínios → contatos das administradoras.</li>
+    <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Clientes podem trazer a coluna “Administradora”: o vínculo é criado, e a administradora é cadastrada se ainda não existir.</li>
+  </ul>
+</section>
+{% endblock %}

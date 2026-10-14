@@ -166,3 +166,36 @@ O usuário reforçou que o foco do sistema é uma **base de dados de clientes ro
 
 Regra nova de voltar atrás (voltar para rascunho ou cancelar até o fim da operação) em [preparação do envio](docs/PREPARACAO_ENVIO_DOCUMENTOS.md). 80 testes Django aprovados e verificação no Edge (desktop e celular) em banco descartável.
 
+### Painel da base de clientes, importação CSV e retaguarda — 14/10/2026
+
+Pedido do usuário: o início deve focar em clientes, administradoras e contratos ativos, com o envio depois. Ele quer importar cadastros em lote por CSV, sem cadastrar um a um, e a retaguarda com o mesmo design do sistema.
+
+- **Início:**
+  - Clientes cadastrados com a completude agregada (% completos e cinco pendências clicáveis, que filtram a lista de clientes) e os cadastrados recentemente com nota "Cadastro x/5".
+  - Administradoras (total, condomínios vinculados, sem contato com e-mail e as principais).
+  - Contratos ativos do Conta Azul.
+  - Por último, o envio de documentos.
+- **Lista de clientes:** filtro por pendência e coluna "Cadastro x/5". Completude em lote em `painel/completude.py`, por consultas agregadas. "Quem recebe documentos" é aproximado em lote (revisão mais recente do condomínio ou do padrão da administradora); a ficha usa o cálculo exato.
+- **Contratos ativos** (`clientes/contratos.py`):
+  - `GET /v1/contratos` somente leitura, status ATIVO, até 10 páginas de 50, cache de 15 minutos (erros por 2 minutos) e botão de atualizar.
+  - Cruzamento com a base pelo CNPJ atual e, sem documento, pelo nome normalizado (único). Contratos sem cadastro têm botão "Cadastrar" com razão social e CNPJ pré-preenchidos.
+  - Autorização expirada vira um aviso, sem travar a tela.
+  - Estrutura baseada no projeto `manutec-faturamento`. A sonda real de 14/10 retornou HTTP 401 (token expirado, renovação manual): **falta conferir com dados reais** depois de renovar.
+- **Importação CSV** (`painel/importacao.py`, telas em `painel/importar.py`, menu "Importar CSV"):
+  - Tipos: clientes, contatos dos condomínios, administradoras e contatos das administradoras. Cada tipo exige a permissão de adicionar correspondente.
+  - Lê UTF-8 ou Windows-1252, com separador ; , ou tabulação; até 2 MB e 5.000 linhas.
+  - Reconhece colunas por sinônimos, sem acento nem caixa (ex.: "Condomínio", "Município"), e a prévia permite reassociar as colunas.
+  - A prévia não grava nada. Ela mostra por linha Novo, Já existe (ignorado, nada é sobrescrito) ou Erro, com as observações.
+  - A gravação refaz a análise e usa uma transação por linha. O resultado lista o que não entrou.
+  - **Regras:**
+    - Cliente exige razão social e CNPJ (o banco já exige CNPJ), e o CNPJ com zeros à esquerda cortados pelo Excel é completado.
+    - Endereço e demais campos são opcionais na importação e viram pendência; o cadastro manual continua exigindo o endereço (`cadastrar_cliente(exigir_endereco=False)` só na importação).
+    - CEP e UF inválidos são ignorados com aviso.
+    - A coluna Administradora vincula o cliente, e a administradora é criada se não existir.
+    - Contato localiza o condomínio pelo CNPJ atual ou pelo nome exato; e-mail inválido é descartado com aviso.
+    - São ignorados contato repetido vigente (mesmo nome no condomínio) e administradora repetida (CNPJ ou razão social).
+  - Há um modelo CSV para baixar em cada tipo.
+- **Retaguarda (Django admin)** com o design do sistema: logotipo, menu lateral em azul profundo com item ativo destacado, cartões arredondados, tabelas, campos e botões iguais aos da interface, modo escuro e link "Voltar para o sistema". Só CSS e o `base_site.html`.
+
+Validação: 87 testes Django (7 novos: importação de clientes com pendências e administradora, leitura cp1252 e reconhecimento de colunas, reassociação, contatos e contatos de administradora, permissões, modelo e descarte, painel e contratos com simulação e 401), 56 Conta Azul, 14 verificações PostgreSQL descartáveis e detector sem apontamentos. `backend/verificar_importacao.cjs` (Playwright/Edge, banco descartável): início, importação ponta a ponta (2 novos, 1 existente, 1 erro), filtro de pendência, retaguarda, modo escuro e celular. O banco foi removido.
+

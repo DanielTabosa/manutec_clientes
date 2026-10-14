@@ -25,7 +25,7 @@ class InterfaceTests(BasePreparacao):
         self.assertContains(resposta, 'Usuário ou senha incorretos')
         resposta = self.client.post(reverse('painel:entrar'), {'username': 'qa', 'password': 'somente-teste'})
         self.assertRedirects(resposta, reverse('painel:inicio'))
-        self.assertContains(self.client.get(reverse('painel:inicio')), 'Preparações recentes')
+        self.assertContains(self.client.get(reverse('painel:inicio')), 'Clientes cadastrados')
 
     def test_permissoes_sem_acesso(self):
         self.operador()

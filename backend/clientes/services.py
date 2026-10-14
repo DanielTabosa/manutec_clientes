@@ -51,9 +51,11 @@ def alterar_administradora(cliente_id, *, acao, data, administradora=None):
         raise ValidationError({"administradora": "Não foi possível alterar o vínculo. Atualize a página e tente novamente."}) from exc
 
 
-def cadastrar_cliente(*, cnpj, data_inicio=None, **dados):
+def cadastrar_cliente(*, cnpj, data_inicio=None, exigir_endereco=True, **dados):
+    """Cadastro manual exige endereço completo; a importação em lote aceita incompleto (aparece como pendência)."""
     cnpj = normalizar_cnpj(cnpj)
-    errors = {campo: "Este campo é obrigatório." for campo in ENDERECO_OBRIGATORIO if not str(dados.get(campo) or "").strip()}
+    errors = {campo: "Este campo é obrigatório." for campo in ENDERECO_OBRIGATORIO
+              if exigir_endereco and not str(dados.get(campo) or "").strip()}
     if errors:
         raise ValidationError(errors)
     with transaction.atomic():

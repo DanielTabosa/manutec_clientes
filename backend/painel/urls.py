@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import cadastros, views
+from . import cadastros, importar, views
 
 app_name = 'painel'
 
@@ -29,6 +29,10 @@ urlpatterns = [
     path('administradoras/<int:adm_pk>/contatos/novo/', cadastros.contato_adm_novo, name='contato_adm_novo'),
     path('contatos-administradora/<int:pk>/editar/', cadastros.contato_adm_editar, name='contato_adm_editar'),
     path('contatos-administradora/<int:pk>/encerrar/', cadastros.contato_adm_encerrar, name='contato_adm_encerrar'),
+    path('importar/', importar.inicio, name='importar'),
+    path('importar/previa/', importar.previa, name='importar_previa'),
+    path('importar/resultado/', importar.resultado, name='importar_resultado'),
+    path('importar/modelo/<str:tipo>/', importar.modelo, name='importar_modelo'),
     path('preparacoes/', views.preparacoes, name='preparacoes'),
     path('preparacoes/nova/', views.nova_preparacao, name='nova_preparacao'),
     path('preparacoes/<int:pk>/', views.preparacao, name='preparacao'),

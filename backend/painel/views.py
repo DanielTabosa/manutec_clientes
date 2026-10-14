@@ -34,7 +34,30 @@ def _clientes_anotados():
 @login_required
 def inicio(request):
     from django.db.models import Count, Q as Qd
-    ctx = dict(secao='inicio', ve_preparacoes=request.user.has_perm('clientes.view_preparacaoenvio'))
+    from clientes import contratos as contratos_ca
+    from clientes.models import Administradora, ContatoAdministradora
+    from . import completude
+    pode = request.user.has_perm
+    ctx = dict(secao='inicio', ve_preparacoes=pode('clientes.view_preparacaoenvio'), ve_clientes=pode('clientes.view_cliente'),
+               ve_administradoras=pode('clientes.view_administradora'))
+    if ctx['ve_clientes']:
+        ctx['base'] = completude.resumo(Cliente.objects.all())
+        ctx['clientes_recentes'] = completude.anotar(_clientes_anotados()).order_by('-criado_em')[:5]
+        for c in ctx['clientes_recentes']:
+            c.pontos = completude.pontos(c)
+        if servico.contaazul_config():
+            dados = contratos_ca.carregar(forcar=request.GET.get('atualizar') == 'contratos')
+            com, sem = contratos_ca.cruzar(dados['itens']) if dados['ok'] else ([], [])
+            ctx['contratos'] = dict(dados, total=len(dados['itens']), com=len(com), sem=sem[:6], total_sem=len(sem))
+    if ctx['ve_administradoras']:
+        adms = Administradora.objects.annotate(condominios=Count('vinculos', filter=Qd(vinculos__data_fim__isnull=True), distinct=True))
+        ctx['adm'] = dict(
+            total=adms.count(),
+            vinculados=ClienteAdministradora.objects.filter(data_fim__isnull=True).count(),
+            sem_email=adms.exclude(pk__in=ContatoAdministradora.objects.filter(encerrado_em__isnull=True, email__gt='')
+                                   .values('administradora_id')).count(),
+            principais=adms.filter(condominios__gt=0).order_by('-condominios', 'razao_social')[:5],
+        )
     if ctx['ve_preparacoes']:
         base = PreparacaoEnvio.objects.select_related('cliente', 'criada_por')
         rascunhos = base.filter(status='rascunho').annotate(
@@ -45,11 +68,10 @@ def inicio(request):
         ).filter(Qd(falhas__gt=0) | Qd(pendentes__gt=0)).order_by('-falhas', '-confirmada_em')
         hoje = _hoje()
         ctx.update(
-            rascunhos=rascunhos[:6], total_rascunhos=rascunhos.count(),
-            pendencias=pendencias[:6], total_pendencias=pendencias.count(),
+            rascunhos=rascunhos[:5], total_rascunhos=rascunhos.count(),
+            pendencias=pendencias[:5], total_pendencias=pendencias.count(),
             enviados_mes=DestinatarioPreparacao.objects.filter(status_envio='aceito', aceito_em__month=hoje.month,
                                                                aceito_em__year=hoje.year).count(),
-            recentes=[(p, fluxo.situacao_envio(p)) for p in base.exclude(status='rascunho')[:6]],
         )
     return render(request, 'painel/inicio.html', ctx)
 
@@ -62,8 +84,12 @@ def _hoje():
 
 @exige('clientes.view_cliente')
 def clientes(request):
+    from . import completude
     termo = request.GET.get('q', '').strip()
-    lista = _clientes_anotados().order_by('razao_social')
+    pendencia = request.GET.get('pendencia', '')
+    lista = completude.anotar(_clientes_anotados()).order_by('razao_social')
+    if pendencia in dict(completude.PENDENCIAS):
+        lista = lista.filter(completude.filtro_pendencia(pendencia))
     if termo:
         digitos = ''.join(c for c in termo if c.isalnum())
         filtro = Q(razao_social__icontains=termo) | Q(nome_fantasia__icontains=termo) | Q(cidade__icontains=termo)
@@ -71,7 +97,10 @@ def clientes(request):
             filtro |= Q(historico_cnpj__cnpj__icontains=digitos.upper())
         lista = lista.filter(filtro).distinct()
     pagina = Paginator(lista, 25).get_page(request.GET.get('pagina'))
-    return render(request, 'painel/clientes.html', dict(secao='clientes', pagina=pagina, termo=termo))
+    for c in pagina:
+        c.pontos = completude.pontos(c)
+    return render(request, 'painel/clientes.html', dict(secao='clientes', pagina=pagina, termo=termo, pendencia=pendencia,
+                                                        pendencias=completude.PENDENCIAS, total_itens=len(completude.PENDENCIAS)))
 
 
 @exige('clientes.view_cliente')

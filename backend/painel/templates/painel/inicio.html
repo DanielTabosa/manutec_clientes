@@ -1,51 +1,86 @@
 {% extends "painel/base.html" %}
+{% load painel %}
 {% block titulo %}Início{% endblock %}
 {% block conteudo %}
 <div class="page-head">
   <div>
     <h1>Olá, {{ user.first_name|default:user.username }}</h1>
-    <p class="lead">{% if ve_preparacoes %}{% if total_rascunhos or total_pendencias %}{{ total_rascunhos }} rascunho(s) em aberto e {{ total_pendencias }} envio(s) com pendência.{% else %}Nada pendente no envio de documentos.{% endif %} {{ enviados_mes }} e-mail(s) aceito(s) neste mês.{% else %}Consulte os clientes pelo menu.{% endif %}</p>
+    <p class="lead">Base de clientes da Manutec: o que está cadastrado e o que falta completar.</p>
   </div>
   <div class="actions">
-    {% if perms.clientes.view_cliente %}<a class="btn" href="{% url 'painel:clientes' %}"><svg class="i"><use href="#i-search"/></svg>Buscar cliente</a>{% endif %}
-    {% if perms.clientes.add_preparacaoenvio %}<a class="btn btn-primary" href="{% url 'painel:clientes' %}?preparar=1"><svg class="i"><use href="#i-plus"/></svg>Preparar envio</a>{% endif %}
+    {% if perms.clientes.add_cliente or perms.clientes.add_contato or perms.clientes.add_administradora %}<a class="btn" href="{% url 'painel:importar' %}"><svg class="i"><use href="#i-upload"/></svg>Importar CSV</a>{% endif %}
+    {% if perms.clientes.add_cliente %}<a class="btn btn-primary" href="{% url 'painel:cliente_novo' %}"><svg class="i"><use href="#i-plus"/></svg>Novo cliente</a>{% endif %}
   </div>
 </div>
 
+{% if ve_clientes %}
+<section class="card painel-base" aria-labelledby="t-base">
+  <div class="painel-base-topo">
+    <div>
+      <h2 id="t-base">Clientes cadastrados</h2>
+      <p class="muted small">{{ base.completos }} de {{ base.total }} com cadastro completo.</p>
+    </div>
+    <div class="numero-grande"><span>{{ base.total }}</span><small>clientes</small></div>
+  </div>
+  <div class="painel-progresso">
+    <div class="completude-topo"><strong>{{ base.percentual }}% completos</strong><span class="barra-prog" role="img" aria-label="{{ base.percentual }}% dos clientes com cadastro completo"><span style="width:{{ base.percentual }}%"></span></span></div>
+  </div>
+  <ul class="pendencias">
+    {% for chave, nome, qtd in base.pendencias %}<li><a href="{% url 'painel:clientes' %}?pendencia={{ chave }}" class="pendencia{% if not qtd %} ok{% endif %}">
+      <span class="pendencia-n">{{ qtd }}</span><span class="pendencia-t">{{ nome }}</span>{% if qtd %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg>{% else %}<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>{% endif %}</a></li>{% endfor %}
+  </ul>
+  {% if clientes_recentes %}
+  <div class="card-head" style="border-top:1px solid var(--border);border-bottom:0"><h3>Cadastrados recentemente</h3><a class="btn btn-sm btn-ghost" href="{% url 'painel:clientes' %}">Ver todos<svg class="i"><use href="#i-arrow"/></svg></a></div>
+  <ul class="worklist" style="border-top:1px solid var(--border)">{% for c in clientes_recentes %}<li><a href="{% url 'painel:cliente' c.pk %}">
+    <span class="worklist-main"><strong>{{ c.razao_social }}</strong><span class="row-sub num-data">{{ c.cnpj_atual|cnpj|default:"Sem CNPJ" }} · {{ c.criado_em|date:"d/m/Y" }}</span></span>
+    <span class="chip {% if c.pontos == 5 %}chip-ok{% else %}chip-warn{% endif %}">Cadastro {{ c.pontos }}/5</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
+  {% else %}<div class="empty" style="border-top:1px solid var(--border)"><strong>Nenhum cliente ainda</strong>Cadastre um a um ou importe uma lista em CSV.</div>{% endif %}
+</section>
+{% endif %}
+
+<div class="grid grid-2" style="margin-top:24px">
+  {% if ve_administradoras %}
+  <section class="card" aria-labelledby="t-adm">
+    <div class="card-head"><div><h2 id="t-adm">Administradoras</h2><p class="muted small">{{ adm.vinculados }} condomínio(s) vinculado(s) hoje.</p></div><div class="numero-grande pequeno"><span>{{ adm.total }}</span></div></div>
+    {% if adm.sem_email %}<a class="faixa-aviso" href="{% url 'painel:administradoras' %}"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>{{ adm.sem_email }} administradora(s) sem contato com e-mail</a>{% endif %}
+    {% if adm.principais %}<ul class="worklist">{% for a in adm.principais %}<li><a href="{% url 'painel:administradora' a.pk %}"><span class="worklist-main"><strong>{{ a.razao_social }}</strong><span class="row-sub">{{ a.condominios }} condomínio(s)</span></span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
+    {% else %}<div class="empty"><strong>Nenhuma administradora com condomínios</strong>Cadastre ou importe as administradoras.</div>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if contratos %}
+  <section class="card" aria-labelledby="t-ctr">
+    <div class="card-head"><div><h2 id="t-ctr">Contratos ativos</h2><p class="muted small">Conta Azul{% if contratos.ok %} · {{ contratos.com }} com cadastro aqui{% endif %}</p></div>
+      <div class="actions">{% if contratos.ok %}<div class="numero-grande pequeno"><span>{{ contratos.total }}</span></div>{% endif %}<a class="btn btn-sm btn-ghost" href="?atualizar=contratos" aria-label="Atualizar contratos"><svg class="i"><use href="#i-refresh"/></svg></a></div></div>
+    {% if not contratos.ok %}<div class="card-body"><div class="alert alert-warn" style="margin:0"><svg class="i"><use href="#i-alert"/></svg><span>{{ contratos.erro }}</span></div></div>
+    {% elif contratos.sem %}
+    <a class="faixa-aviso" href="#t-ctr"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>{{ contratos.total_sem }} contrato(s) de clientes sem cadastro aqui</a>
+    <ul class="worklist">{% for c in contratos.sem %}<li><div class="worklist-row"><span class="worklist-main"><strong>{{ c.cliente|default:"Cliente sem nome" }}</strong><span class="row-sub">Contrato {{ c.numero|default:"—" }}{% if c.vencimento %} · próximo vencimento {{ c.vencimento }}{% endif %}</span></span>
+      {% if perms.clientes.add_cliente %}<a class="btn btn-sm" href="{% url 'painel:cliente_novo' %}?razao_social={{ c.cliente|urlencode }}{% if c.documento %}&cnpj={{ c.documento }}{% endif %}"><svg class="i"><use href="#i-plus"/></svg>Cadastrar</a>{% endif %}</div></li>{% endfor %}</ul>
+    {% else %}<div class="empty"><strong>Todos os contratos têm cadastro</strong>Cada contrato ativo corresponde a um cliente da base.</div>{% endif %}
+  </section>
+  {% endif %}
+</div>
+
 {% if ve_preparacoes %}
+<h2 class="secao-titulo">Envio de documentos</h2>
 <div class="grid grid-2">
   <section class="card" aria-labelledby="t-pend">
-    <div class="card-head"><h2 id="t-pend">Envios com pendência <span class="count">{{ total_pendencias }}</span></h2>{% if total_pendencias > 6 %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}?status=confirmada">Ver todos</a>{% endif %}</div>
+    <div class="card-head"><h3 id="t-pend">Envios com pendência <span class="count">{{ total_pendencias }}</span></h3><span class="muted small">{{ enviados_mes }} aceito(s) no mês</span></div>
     {% if pendencias %}<ul class="worklist">{% for p in pendencias %}<li><a href="{% url 'painel:preparacao' p.pk %}#envio">
       <span class="worklist-main"><strong>{{ p.cliente }}</strong><span class="row-sub">Preparação {{ p.pk }} · confirmada em {{ p.confirmada_em|date:"d/m H:i" }}</span></span>
       <span class="chips">{% if p.falhas %}<span class="chip chip-error">{{ p.falhas }} com falha</span>{% endif %}{% if p.pendentes %}<span class="chip chip-warn">{{ p.pendentes }} a enviar</span>{% endif %}</span>
       <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
     {% else %}<div class="empty"><strong>Tudo enviado</strong>Nenhuma preparação confirmada aguardando envio.</div>{% endif %}
   </section>
-
   <section class="card" aria-labelledby="t-rasc">
-    <div class="card-head"><h2 id="t-rasc">Rascunhos em aberto <span class="count">{{ total_rascunhos }}</span></h2>{% if total_rascunhos > 6 %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}?status=rascunho">Ver todos</a>{% endif %}</div>
+    <div class="card-head"><h3 id="t-rasc">Rascunhos em aberto <span class="count">{{ total_rascunhos }}</span></h3><a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}">Ver todas<svg class="i"><use href="#i-arrow"/></svg></a></div>
     {% if rascunhos %}<ul class="worklist">{% for p in rascunhos %}<li><a href="{% url 'painel:preparacao' p.pk %}">
-      <span class="worklist-main"><strong>{{ p.cliente }}</strong><span class="row-sub">Preparação {{ p.pk }} · criada em {{ p.criada_em|date:"d/m H:i" }}{% if p.criada_por %} por {{ p.criada_por }}{% endif %}</span></span>
-      <span class="chips"><span class="chip">{% if p.docs %}{{ p.docs }} documento(s){% else %}Sem documentos{% endif %}</span></span>
+      <span class="worklist-main"><strong>{{ p.cliente }}</strong><span class="row-sub">Preparação {{ p.pk }} · criada em {{ p.criada_em|date:"d/m H:i" }}</span></span>
+      <span class="chip">{% if p.docs %}{{ p.docs }} documento(s){% else %}Sem documentos{% endif %}</span>
       <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
-    {% else %}<div class="empty"><strong>Nenhum rascunho</strong>Comece em “Preparar envio”.</div>{% endif %}
+    {% else %}<div class="empty"><strong>Nenhum rascunho</strong>Abra um cliente e use “Preparar envio”.</div>{% endif %}
   </section>
 </div>
-
-<section class="card" style="margin-top:24px" aria-labelledby="recentes">
-  <div class="card-head"><h2 id="recentes">Preparações recentes</h2><a class="btn btn-sm btn-ghost" href="{% url 'painel:preparacoes' %}">Ver todas<svg class="i"><use href="#i-arrow"/></svg></a></div>
-  {% if recentes %}
-  <div class="table-wrap"><table class="table responsive">
-    <thead><tr><th>Cliente</th><th>Situação</th><th>Envio</th><th>Confirmada</th></tr></thead>
-    <tbody>{% for p, envio in recentes %}<tr>
-      <td data-label="Cliente"><a class="row-link" href="{% url 'painel:preparacao' p.pk %}">{{ p.cliente }}</a><div class="row-sub">Preparação {{ p.pk }}</div></td>
-      <td data-label="Situação">{% include "painel/_status.html" with status=p.status rotulo=p.get_status_display %}</td>
-      <td data-label="Envio">{{ envio|default:"—" }}</td>
-      <td data-label="Confirmada" class="num-data">{{ p.confirmada_em|date:"d/m/Y H:i"|default:"—" }}</td>
-    </tr>{% endfor %}</tbody>
-  </table></div>
-  {% else %}<div class="empty"><strong>Nenhuma preparação confirmada ainda</strong>As confirmadas e canceladas aparecem aqui.</div>{% endif %}
-</section>
 {% endif %}
 {% endblock %}
