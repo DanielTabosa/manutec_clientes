@@ -1,6 +1,23 @@
 // Interface de operação: menu móvel, busca rápida, avisos, etapas, PDF lateral e confirmações.
 // Tudo é complemento: sem JavaScript as páginas e formulários continuam funcionando; o servidor valida de novo.
 document.addEventListener('DOMContentLoaded', () => {
+  // Chave de tema: claro, seguir o sistema ou escuro (lembrado neste navegador)
+  const raiz = document.documentElement;
+  const marcarTema = () => {
+    const atual = raiz.dataset.theme || 'auto';
+    document.querySelectorAll('[data-tema] button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.valor === atual)));
+  };
+  document.querySelectorAll('[data-tema] button').forEach(b => b.addEventListener('click', () => {
+    const valor = b.dataset.valor;
+    const aplicar = () => {
+      if (valor === 'auto') delete raiz.dataset.theme; else raiz.dataset.theme = valor;
+      try { valor === 'auto' ? localStorage.removeItem('tema') : localStorage.setItem('tema', valor); } catch (e) {}
+      marcarTema();
+    };
+    document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches ? document.startViewTransition(aplicar) : aplicar();
+  }));
+  marcarTema();
+
   // Menu móvel
   const menu = document.getElementById('menu');
   const botao = document.querySelector('[data-abrir-menu]');

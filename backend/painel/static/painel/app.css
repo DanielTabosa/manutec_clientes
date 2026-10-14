@@ -43,8 +43,9 @@
   --shadow-3: 0 24px 60px rgba(7, 26, 61, .28);
   color-scheme: light;
 }
+/* Escuro: segue o sistema, salvo escolha explícita na chave de tema (data-theme no <html>) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #081327; --surface: #0e1d38; --surface-2: #112243; --surface-hover: #15294f; --surface-sunken: #0b1830;
     --text: #e8eef8; --text-2: #a9b7cc; --text-3: #8496b0;
     --border: #1f3459; --border-strong: #2b4573;
@@ -58,6 +59,20 @@
     color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #081327; --surface: #0e1d38; --surface-2: #112243; --surface-hover: #15294f; --surface-sunken: #0b1830;
+  --text: #e8eef8; --text-2: #a9b7cc; --text-3: #8496b0;
+  --border: #1f3459; --border-strong: #2b4573;
+  --primary: var(--azul-400); --primary-hover: #7db1f0; --on-primary: #061634; --primary-soft: #16305e; --primary-soft-text: #a9cbf6;
+  --confirm: #34c26f; --on-confirm: #052512;
+  --nav-bg: #050f22; --nav-active: var(--azul-600);
+  --ok-bg: #0f3321; --ok-text: #86efac; --ok-dot: #34c26f;
+  --warn-bg: #3a2a0c; --warn-text: #fcd34d; --error-bg: #3b1515; --error-text: #fca5a5; --info-bg: #13294f; --info-text: #9cc4f5;
+  --focus: var(--azul-400);
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 10px 28px rgba(0,0,0,.45); --shadow-3: 0 24px 60px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 /* 3. Base */
 *, *::before, *::after { box-sizing: border-box; }
@@ -116,6 +131,11 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 .barra { position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-6); background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid transparent; transition: border-color var(--dur); }
 .barra.rolou { border-bottom-color: var(--border); }
 .busca-global { position: relative; flex: 1; max-width: 520px; }
+.tema { margin-left: auto; display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--r-full); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-1); }
+.tema button { display: inline-grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: var(--r-full); background: transparent; color: var(--text-3); cursor: pointer; transition: background-color var(--dur), color var(--dur); }
+.tema button:hover { color: var(--text); background: var(--surface-hover); }
+.tema button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
+.tema-solta { position: fixed; top: 16px; right: 16px; z-index: 20; }
 .busca-global .i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-3); }
 .busca-global .input { padding-left: 38px; padding-right: 64px; background: var(--surface); }
 .atalho { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11.5px; color: var(--text-3); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; background: var(--surface-2); pointer-events: none; }
@@ -329,6 +349,7 @@ dialog.gaveta::backdrop { background: rgba(7, 26, 61, .45); backdrop-filter: blu
   .topbar .marca-nome { font-size: 17px; }
   .barra { padding: var(--s-2) var(--s-4); top: 58px; }
   .atalho { display: none; }
+  .tema button { width: 40px; height: 40px; }
   .container { padding: var(--s-4) var(--s-4) 0; }
   .passos-wrap { top: 122px; }
   .passos { border-radius: var(--r-md); }
