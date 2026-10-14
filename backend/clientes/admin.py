@@ -5,6 +5,7 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
+from django.utils.html import format_html
 from .models import ContatoAdministradora, Responsabilidade
 from .models import Cliente, HistoricoCNPJ, Contato
 from .forms import TrocaCNPJForm, CadastroClienteForm, ClienteEnderecoForm
@@ -150,11 +151,18 @@ class ClienteAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
     form = ClienteEnderecoForm
     change_form_template = "admin/clientes/editar_cliente.html"
     fields = ["razao_social", "nome_fantasia", "cep", "logradouro", "numero", "complemento",
-              "bairro", "cidade", "estado", "observacoes", "gerenciar_destinatarios", "id", "criado_em", "atualizado_em"]
+              "bairro", "cidade", "estado", "observacoes", "gerenciar_destinatarios", "preparar_documentos", "id", "criado_em", "atualizado_em"]
     list_display = ["id", "razao_social", "nome_fantasia", "cidade", "estado"]
     search_fields = ["razao_social", "nome_fantasia", "cidade"]
-    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_destinatarios"]
+    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_destinatarios", "preparar_documentos"]
     inlines = [HistoricoCNPJInline, ContatoInline, HistoricoAdministradoraInline]
+
+    def preparar_documentos(self, obj):
+        if not obj or not obj.pk:
+            return "Salve o cadastro primeiro."
+        return format_html('<a href="{}?cliente={}">Preparar envio de documentos</a> · <a href="{}?cliente__exact={}">Preparações anteriores</a>',
+                           reverse("admin:clientes_preparacaoenvio_add"), obj.pk, reverse("admin:clientes_preparacaoenvio_changelist"), obj.pk)
+    preparar_documentos.short_description = "Envio de documentos"
 
     def administradora_view(self, request, cliente_id):
         obj = self.get_object(request, cliente_id)
@@ -294,3 +302,5 @@ class ResponsabilidadeAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+from .preparacao_admin import PreparacaoEnvioAdmin  # noqa: E402,F401

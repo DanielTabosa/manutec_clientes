@@ -1,0 +1,114 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrahead %}{{ block.super }}
+<link rel="stylesheet" href="{% static 'clientes/preparacao.css' %}">
+<script src="{% static 'clientes/preparacao.js' %}" defer></script>
+{% endblock %}
+{% block breadcrumbs %}<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Início</a> › <a href="{% url 'admin:clientes_preparacaoenvio_changelist' %}">Preparações de envio</a> › Preparação {{ prep.pk }}</div>{% endblock %}
+{% block content %}
+<div class="prep">
+  <div class="prep-cabecalho">
+    <div>
+      <p class="prep-rotulo">Cliente</p>
+      <p class="prep-cliente"><a href="{% url 'admin:clientes_cliente_change' prep.cliente_id %}">{{ prep.cliente }}</a></p>
+      <p class="prep-meta">Criada em {{ prep.criada_em|date:"d/m/Y H:i" }}{% if prep.criada_por %} por {{ prep.criada_por }}{% endif %}{% if prep.confirmada_em %} · Confirmada em {{ prep.confirmada_em|date:"d/m/Y H:i" }}{% if prep.confirmada_por %} por {{ prep.confirmada_por }}{% endif %}{% endif %}{% if prep.cancelada_em %} · Cancelada em {{ prep.cancelada_em|date:"d/m/Y H:i" }}{% endif %}</p>
+    </div>
+    <span class="prep-status prep-status-{{ prep.status }}">{{ prep.get_status_display }}</span>
+  </div>
+
+  {% if erros %}<div class="prep-alerta prep-erro" role="alert">{% if erros|length == 1 %}{{ erros.0 }}{% else %}<ul>{% for e in erros %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
+
+  {% if prep.status == 'rascunho' %}
+  <section class="prep-secao" id="documentos" aria-labelledby="s1">
+    <h2 id="s1"><span class="prep-num">1</span> Documentos</h2>
+    <p class="prep-ajuda">Classifique cada PDF. As categorias são independentes: o cliente pode receber só o boleto, só a nota ou ambos.</p>
+    {% if plano.documentos %}
+    <table class="prep-tabela">
+      <thead><tr><th>Arquivo</th><th>Categoria</th><th>Referência</th><th>Tamanho</th><th><span class="prep-sr">Ações</span></th></tr></thead>
+      <tbody>{% for d in plano.documentos %}<tr data-documento>
+        <td class="prep-arquivo">{{ d.nome_original }}</td>
+        <td><span class="prep-chip prep-chip-{{ d.categoria }}">{{ d.get_categoria_display }}</span></td>
+        <td>{{ d.referencia|default:"—" }}</td>
+        <td>{{ d.tamanho|filesizeformat }}</td>
+        <td class="prep-acoes"><a class="button" href="{% url 'admin:clientes_preparacaoenvio_documento' prep.pk d.pk %}" target="_blank" rel="noopener" aria-label="Visualizar {{ d.nome_original }}">Visualizar</a>
+          {% if pode_editar %}<form method="post">{% csrf_token %}<input type="hidden" name="acao" value="remover"><input type="hidden" name="documento" value="{{ d.pk }}"><button type="submit" class="prep-botao-secundario" aria-label="Remover {{ d.nome_original }}">Remover</button></form>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<p class="prep-vazio">Nenhum documento anexado.</p>{% endif %}
+    {% if pode_editar %}
+    <form method="post" enctype="multipart/form-data" class="prep-anexar">{% csrf_token %}
+      <input type="hidden" name="acao" value="anexar">
+      <div class="prep-campo"><label for="arquivos">PDFs</label><input type="file" id="arquivos" name="arquivos" accept="application/pdf,.pdf" multiple required><p class="prep-dica">Até 10 MB cada. Vários arquivos recebem a mesma categoria e referência.</p></div>
+      <div class="prep-campo"><label for="categoria">Categoria</label><select id="categoria" name="categoria" required><option value="">Escolha…</option>{% for valor, nome in categorias %}<option value="{{ valor }}">{{ nome }}</option>{% endfor %}</select></div>
+      <div class="prep-campo"><label for="referencia">Referência <span class="prep-opcional">(opcional)</span></label><input type="text" id="referencia" name="referencia" maxlength="120" placeholder="Ex.: vencimento 13/11, NFS-e 1234"></div>
+      <div class="prep-campo prep-campo-botao"><button type="submit">Anexar</button></div>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="prep-secao" aria-labelledby="s2">
+    <h2 id="s2"><span class="prep-num">2</span> Destinatários</h2>
+    <p class="prep-ajuda">Cada e-mail recebe somente os documentos das categorias configuradas. Para corrigir contatos ou categorias, use <a href="{{ destinatarios_url }}">Destinatários e histórico</a>; nada é alterado aqui.</p>
+    <div class="prep-resumo"><span><b>{{ plano.envios|length }}</b> e-mail(s) apto(s)</span><span><b>{{ plano.sem_email|length }}</b> sem e-mail</span><span><b>{{ plano.sem_anexo|length }}</b> sem anexo aplicável</span></div>
+    {% if plano.envios %}
+    <table class="prep-tabela">
+      <thead><tr><th>Destinatário</th><th>E-mail</th><th>Anexos que receberia</th></tr></thead>
+      <tbody>{% for g in plano.envios %}<tr data-envio>
+        <td>{% for c in g.contatos %}<div><strong>{{ c.nome }}</strong> <span class="prep-meta">{{ c.origens|join:", " }}</span></div>{% endfor %}{% if g.contatos|length > 1 %}<div class="prep-meta">Mesmo e-mail: um único envio.</div>{% endif %}</td>
+        <td class="prep-email">{{ g.email }}</td>
+        <td><ul class="prep-docs">{% for d in g.documentos %}<li>{{ d.nome_original }} <span class="prep-chip prep-chip-{{ d.categoria }}">{{ d.get_categoria_display }}</span></li>{% endfor %}</ul></td>
+      </tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<p class="prep-vazio">Nenhum destinatário apto com os documentos atuais.</p>{% endif %}
+    {% if plano.sem_email or plano.sem_anexo %}
+    <ul class="prep-fora">
+      {% for c in plano.sem_email %}<li data-impedido><strong>{{ c.nome }}</strong> — <span class="prep-chip prep-chip-erro">Sem e-mail</span> não recebe por e-mail ({{ c.categorias|join:", " }}). O cadastro é mantido.</li>{% endfor %}
+      {% for c in plano.sem_anexo %}<li><strong>{{ c.nome }}</strong> — nenhum anexo das categorias {{ c.categorias|join:", " }}.</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <section class="prep-secao" id="revisao" aria-labelledby="s3">
+    <h2 id="s3"><span class="prep-num">3</span> Revisão e confirmação</h2>
+    <form method="post" id="form-revisao">{% csrf_token %}
+      <input type="hidden" name="impressao" value="{{ plano.impressao }}">
+      <div class="prep-campo"><label for="assunto">Assunto</label><input type="text" id="assunto" name="assunto" maxlength="200" value="{{ assunto }}" {% if not pode_editar %}readonly{% endif %}></div>
+      <div class="prep-campo"><label for="mensagem">Mensagem</label><textarea id="mensagem" name="mensagem" rows="8" {% if not pode_editar %}readonly{% endif %}>{{ mensagem }}</textarea><p class="prep-dica">O mesmo texto vai para todos; os anexos variam por destinatário.</p></div>
+      {% if plano.conflitos %}
+      <div class="prep-alerta prep-aviso" role="alert">
+        <p><strong>Possível reenvio.</strong> Estes documentos já constam em preparação confirmada para o mesmo e-mail:</p>
+        <ul>{% for c in plano.conflitos %}<li>{{ c.documento.nome_original }} → {{ c.email }} (<a href="{% url 'admin:clientes_preparacaoenvio_change' c.preparacao.pk %}">preparação {{ c.preparacao.pk }}</a>, {{ c.preparacao.confirmada_em|date:"d/m/Y H:i" }})</li>{% endfor %}</ul>
+        <p>Remova-os ou, se o reenvio for intencional, informe o motivo.</p>
+        <div class="prep-campo"><label for="motivo_reenvio">Motivo do reenvio</label><input type="text" id="motivo_reenvio" name="motivo_reenvio" maxlength="200" value="{{ motivo_reenvio }}"></div>
+      </div>
+      {% endif %}
+      {% if pode_confirmar %}<label class="prep-conferencia"><input type="checkbox" name="conferido" value="sim" id="conferido"> Conferi os destinatários aptos e seus anexos.</label>{% endif %}
+      <div class="prep-rodape">
+        {% if pode_editar %}<button type="submit" name="acao" value="salvar_texto" class="prep-botao-secundario">Salvar texto</button>{% endif %}
+        {% if pode_confirmar %}<button type="submit" name="acao" value="confirmar" class="prep-botao-confirmar" id="confirmar" {% if not plano.envios %}disabled{% endif %}>Confirmar preparação</button>{% endif %}
+      </div>
+      <p class="prep-dica">Confirmar registra destinatários e anexos deste momento. Nenhuma mensagem é enviada nesta etapa.</p>
+    </form>
+    {% if pode_editar %}<form method="post" class="prep-cancelar" data-confirmar-acao="Cancelar esta preparação? Registros e arquivos serão preservados.">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button type="submit" class="prep-botao-perigo">Cancelar preparação</button></form>{% endif %}
+  </section>
+
+  {% else %}
+  <section class="prep-secao" aria-labelledby="s4">
+    <h2 id="s4">{% if prep.status == 'confirmada' %}Registro confirmado{% else %}Preparação cancelada{% endif %}</h2>
+    {% if prep.status == 'confirmada' %}<p class="prep-alerta prep-info">Nenhuma mensagem foi enviada. Este registro guarda os destinatários e anexos do momento da confirmação.</p>{% endif %}
+    <p><strong>Assunto:</strong> {{ prep.assunto }}</p>
+    <pre class="prep-mensagem">{{ prep.mensagem }}</pre>
+    {% if prep.motivo_reenvio %}<p><strong>Motivo do reenvio:</strong> {{ prep.motivo_reenvio }}</p>{% endif %}
+    {% if prep.status == 'confirmada' %}
+    <table class="prep-tabela">
+      <thead><tr><th>Destinatário</th><th>E-mail</th><th>Anexos</th></tr></thead>
+      <tbody>{% for dest in confirmados %}<tr data-envio><td>{{ dest.nomes }}</td><td class="prep-email">{{ dest.email }}</td>
+        <td><ul class="prep-docs">{% for i in dest.itens.all %}<li><a href="{% url 'admin:clientes_preparacaoenvio_documento' prep.pk i.documento.pk %}" target="_blank" rel="noopener">{{ i.documento.nome_original }}</a> <span class="prep-chip prep-chip-{{ i.documento.categoria }}">{{ i.documento.get_categoria_display }}</span>{% if i.reenvio %} <span class="prep-chip prep-chip-aviso">Reenvio</span>{% endif %}</li>{% endfor %}</ul></td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+    <h3>Documentos anexados</h3>
+    <ul class="prep-docs">{% for d in documentos %}<li><a href="{% url 'admin:clientes_preparacaoenvio_documento' prep.pk d.pk %}" target="_blank" rel="noopener">{{ d.nome_original }}</a> <span class="prep-chip prep-chip-{{ d.categoria }}">{{ d.get_categoria_display }}</span>{% if d.removido_em %} <span class="prep-meta">removido em {{ d.removido_em|date:"d/m/Y H:i" }}</span>{% endif %}</li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

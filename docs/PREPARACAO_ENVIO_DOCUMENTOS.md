@@ -2,6 +2,23 @@
 
 Estado atual em 06/10/2026: download de um PDF de boleto existente comprovado diretamente pela API pública. Integração ao painel, anexos e envio ainda não implementados. Evidências anteriores estão preservadas abaixo como contexto datado.
 
+## Preparação de envio no painel — 14/10/2026
+
+Etapa 1 do plano até produção aprovado pelo usuário em 14/10/2026 (meta: MVP em 27/11/2026). Implementado em `backend/clientes/preparacao*.py`, template `admin/clientes/preparacao.html` e migration **0008** (quatro tabelas novas: preparação, documento, destinatário e item). **A migration não foi aplicada ao banco instalado:** antes disso, fazer backup e obter autorização, como na 0007.
+
+Fluxo no painel: cadastro do cliente → **Preparar envio de documentos** → anexar PDFs classificados (cinco categorias independentes) → conferir os destinatários atuais (`destinatarios.efetivos`) → revisar assunto e texto → **Confirmar preparação**. A confirmação grava destinatários e anexos daquele momento, e a preparação passa a ser imutável. **Nenhuma mensagem é enviada**: o envio por SMTP é a etapa 2.
+
+Regras adotadas como padrão nesta etapa (confirmar com o usuário):
+- **Prevenção de reenvio:** o mesmo PDF (SHA-256) para o mesmo e-mail já presente em preparação confirmada bloqueia a confirmação. Reenvio intencional exige motivo, registrado na preparação e marcado nos itens. Preparações canceladas não contam.
+- **Mesmo e-mail em vários contatos:** um único destinatário, com a soma dos anexos.
+- Contato sem e-mail aparece impedido, e o cadastro é mantido. Contato sem anexo das suas categorias fica de fora, com aviso.
+- Remover um anexo do rascunho e cancelar uma preparação preservam registros e arquivos. Não há exclusão.
+- A confirmação compara uma impressão de destinatários e anexos com a conferida na tela. Se algo mudou, exige nova revisão. Confirmações do mesmo cliente são serializadas por bloqueio do cliente.
+
+Arquivos: PDF validado (extensão, assinatura, `%%EOF`, até 10 MB) e salvo em `ARQUIVOS_PRIVADOS_DIR` (padrão `backend/privado/`, fora do Git, configurável por `DJANGO_ARQUIVOS_PRIVADOS`). Não há URL pública: a visualização passa pela view autenticada do painel, com `Cache-Control: private, no-store`. Permissões: `view_preparacaoenvio` para consultar; `add_preparacaoenvio` para criar e editar rascunhos; `confirmar_preparacaoenvio` para confirmar.
+
+Validação: 55 testes SQLite (6 novos); 13 verificações PostgreSQL em banco descartável (2 novas: constraints/retrato/reenvio e confirmações concorrentes do mesmo PDF, em que uma confirma e a outra é rejeitada); fluxo Edge `backend/verificar_preparacao_painel.cjs` contra servidor local no banco descartável, com screenshots desktop e mobile inspecionados. O banco descartável foi removido. Limites: a checagem de reenvio entre clientes diferentes não é serializada; um arquivo pode ficar órfão se a transação falhar depois de gravado.
+
 ## Base de teste e desenho do fluxo — decisão de 07/10/2026
 
 **Decisão do usuário:** os clientes atualmente cadastrados são reais, mas foram inseridos apenas para testes e podem conter dados imprecisos. A associação com documentos só será validada quando a base definitiva estiver preenchida. Não usar a prévia anterior para concluir que faltam 110 clientes, preparar importação, corrigir cadastros ou sugerir envios reais. Scripts e relatório anteriores ficam preservados como evidência técnica; sem novas execuções de alinhamento nesta fase.

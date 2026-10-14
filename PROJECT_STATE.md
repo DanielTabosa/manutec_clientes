@@ -30,6 +30,7 @@ O schema contém oito tabelas de domínio; sua existência na instalação foi r
 | `responsabilidades` | Cadastro/edição/encerramento, períodos, filtros, painel/API e encerramento na troca da empresa |
 | `destinatarios_faturamento` | SQL legado preservado; não usado pelo módulo novo |
 | Configuração/revisão/item de destinatários | Três tabelas gerenciadas na migration 0007; painel/API implementados e migration aplicada em 28/09/2026 |
+| Preparação de envio (preparação/documento/destinatário/item) | Quatro tabelas na migration 0008, painel implementado em 14/10/2026; **0008 ainda não aplicada ao banco instalado** |
 
 Consultas BrasilAPI/ViaCEP implementadas nos formulários pertinentes. Parcial: identidade de contatos, telefone/e-mail únicos por registro, função livre, histórico editável de contatos e consulta aos anteriores. Pendente: prioridade/alternativo estruturado, apresentação compacta de dois anteriores, frontend próprio e integrações operacionais.
 
@@ -94,3 +95,5 @@ Prévia de associação NFS-e/clientes concluída em 07/10/2026: script local co
 Decisão de 07/10/2026: continuar pelo desenho do fluxo cliente → anexos classificados → conferência dos anexos por destinatário → confirmação. Desenho registrado em [preparação do envio](docs/PREPARACAO_ENVIO_DOCUMENTOS.md), já aprovado para protótipo, com implementação pausada a pedido do usuário. Demonstração proposta com cliente/contatos/arquivos fictícios e resultado simulado; sem acesso à base instalada, associação automática, integração de envio ou alterações de regras.
 
 Protótipo concluído em 14/10/2026: [docs/prototipos/documentos/index.html](docs/prototipos/documentos/index.html), HTML único sem recursos externos, com cliente/contatos/PDFs fictícios, quatro etapas (cliente → anexos → destinatários → revisão) e ação Simular preparação. Roteiro backend/verificar_prototipo_documentos.cjs aprovado no Edge (Playwright): categorias independentes, contato sem e-mail impedido, confirmação obrigatória, retorno à revisão, remoção, PDF inválido, visualização, mobile 390 px e zero requisições HTTP. Tokens de design em três camadas no próprio arquivo (base para o frontend futuro). Sem banco, API, envio ou alteração de regras.
+
+Etapa 1 do plano até produção (meta MVP 27/11/2026) concluída em 14/10/2026: preparação de envio no painel, com histórico, retrato na confirmação e prevenção de reenvio; nenhum envio real. 55 testes SQLite e 13 verificações PostgreSQL descartáveis aprovados; fluxo Edge inspecionado. Detalhes e regras adotadas em [preparação do envio](docs/PREPARACAO_ENVIO_DOCUMENTOS.md). Próxima etapa: SMTP.

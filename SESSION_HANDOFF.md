@@ -1,34 +1,39 @@
-# Retomada — protótipo de documentos entregue; plano até produção proposto
+# Retomada — etapa 1 concluída; próxima: SMTP (etapa 2)
 
-## Sessão de 14/10/2026
+## Plano aprovado em 14/10/2026 (meta: MVP em produção em 27/11/2026)
 
-O usuário relatou prazo estourado e pediu para adiantar o projeto, usar as skills /design e /ui-ux-pro-max no frontend (Impeccable quando fizer sentido) e estimar a entrega em produção.
-
-Entregue: `docs/prototipos/documentos/index.html`, um HTML único sem recursos externos e com dados fictícios. Fluxo: cliente → anexos → destinatários → revisão → "Simular preparação". O roteiro `backend/verificar_prototipo_documentos.cjs` passou no Edge, e os screenshots desktop e mobile foram inspecionados (ficam em `.venv/qa/prototipo`, ignorado). Os tokens de design em três camadas estão no `<style>` do protótipo: navy institucional, verde só para confirmação, fontes do sistema, modo escuro e foco visível. A Impeccable não foi usada, porque não compensava num protótipo de uma tela; reavaliar no frontend real. Não houve banco, API, envio nem mudança de regra.
-
-Comando de validação (Node do Codex):
-`NODE_PATH=C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe backend/verificar_prototipo_documentos.cjs` (QA_SCREENSHOT_DIR opcional, sob `.venv`).
-
-## Agents
-
-Os arquivos `agents/*.md` (ORQUESTRADOR, REQUISITOS, BANCO_DADOS, BACKEND, FRONTEND, QA, SEGURANCA, DEVOPS) descrevem papéis e não são executáveis. Não existe `.claude/agents/`. O orquestrador declara não iniciar agentes. A execução é feita pelo agente principal, consultando o papel pertinente. Criar subagentes reais foi proposto, mas não autorizado.
-
-## Plano proposto até produção (aguarda aprovação do usuário)
-
-Estimativa entregue ao usuário: **MVP em produção em 27/11/2026**, ou **06/11/2026** com escopo reduzido (envio por e-mail com anexos manuais, sem buscar no Conta Azul). As datas dependem das entradas do usuário: dados SMTP do cPanel, hospedagem/servidor do Django e base definitiva de clientes.
-
-1. Fluxo real de preparação no painel Django: modelo de lote/envio com histórico, migration, permissões, prevenção de reenvio, testes SQLite e PostgreSQL.
-2. Envio por SMTP: remetente, registro de aceitação/falha e envio de teste para endereço do próprio usuário.
+1. ✅ Preparação de envio no painel, com histórico, retrato na confirmação e prevenção de reenvio. Concluída em 14/10.
+2. Envio por SMTP: remetente, registro de aceitação/falha e envio de teste para endereço do próprio usuário. **Depende do usuário:** dados SMTP da conta do domínio no cPanel (servidor, porta, TLS, remetente). As credenciais vão para o `.env`, nunca para o chat.
 3. Busca de boleto (`contaazul_boleto.py`) e NFS-e (ZIP) dentro do fluxo, com associação conferida pelo usuário.
-4. Implantação: hospedagem a definir, HTTPS, DEBUG desligado, segredos, backup e restauração.
+4. Implantação: hospedagem a definir pelo usuário, HTTPS, DEBUG desligado, segredos, backup e restauração.
 5. Homologação com a base definitiva e treinamento.
 
-Fora do MVP: WhatsApp, Auvo, n8n, IA e frontend separado (SPA).
+Fora do MVP: WhatsApp, Auvo, n8n, IA e frontend separado.
+
+## Estado da etapa 1
+
+- Código: `backend/clientes/preparacao_models.py`, `preparacao.py`, `preparacao_admin.py`, template `admin/clientes/preparacao.html`, `static/clientes/preparacao.{css,js}`, link "Preparar envio de documentos" no cadastro do cliente.
+- **Migration 0008 criada e NÃO aplicada ao banco instalado.** Antes de aplicar: backup verificado, como na 0007, e autorização do usuário.
+- Regras adotadas como padrão, aguardando confirmação do usuário:
+  - Bloqueio do mesmo PDF (SHA-256) ao mesmo e-mail já confirmado; reenvio só com motivo registrado.
+  - Um envio por e-mail, mesmo quando há vários contatos com o mesmo endereço.
+  - Cancelar e remover preservam registros e arquivos.
+  - Detalhes em `docs/PREPARACAO_ENVIO_DOCUMENTOS.md`.
+- Validação:
+  - 55 testes SQLite.
+  - 13 verificações PostgreSQL em banco descartável (já removido).
+  - Fluxo Edge `backend/verificar_preparacao_painel.cjs`, com screenshots em `.venv/qa/preparacao2` (ignorado).
+- Arquivos PDF em `DJANGO_ARQUIVOS_PRIVADOS` (padrão `backend/privado/`, ignorado pelo Git).
+
+## Ferramentas
+
+- Node/Playwright: `C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe`, com NODE_PATH em `.../dependencies/node/node_modules`; usar o Edge (channel msedge).
+- Verificação visual do painel: `verificar_postgresql.py --keep` e `runserver` com `POSTGRES_DB=<banco descartável>`; remover o banco ao final.
+- `agents/*.md` são papéis documentais e não são executáveis. Não existe `.claude/agents/`.
 
 ## Decisões preservadas
 
-- A base atual de clientes é de teste. Associação/alinhamento só com a base definitiva; não reutilizar a prévia de 07/10.
-- Cinco categorias independentes. Contato sem e-mail não recebe e-mail, e o cadastro é mantido. Correções de destinatários ficam na tela própria.
-- Envio real, SMTP, associação persistida e integração ao painel não estão implementados nem autorizados.
-- Evidências Conta Azul (boleto, NFS-e, prévia) e cuidados com credenciais/backup: ver `PROJECT_STATE.md` e `docs/PREPARACAO_ENVIO_DOCUMENTOS.md`. Não ler credenciais em `.venv/contaazul`. HTTP 401 exige renovação manual.
-- Git: branch main, remoto origin; usar `git -c safe.directory=C:/dev/manutec-clientes`.
+- A base de clientes é de teste. Associação/alinhamento só com a base definitiva.
+- Categorias independentes. Contato sem e-mail não recebe e-mail. Correções de destinatários ficam na tela própria.
+- Não ler credenciais em `.venv/contaazul`. HTTP 401 exige renovação manual. Preservar o backup `.venv/backups/pre_0007_20260928/`.
+- Git: main/origin com `git -c safe.directory=C:/dev/manutec-clientes`. Commit/push rotineiros autorizados.

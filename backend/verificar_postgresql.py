@@ -287,6 +287,54 @@ def worker():
                 first.result(timeout=10);self.assertEqual(second.result(timeout=10),'rejeitado')
             self.assertIsNone(d.atual(administradora_id=self.a.pk))
 
+        def preparar(self, conteudo):
+            from django.core.files.uploadedfile import SimpleUploadedFile
+            from clientes import destinatarios as d, preparacao as prep
+            if not d.atual(administradora_id=self.a.pk):
+                d.salvar(administradora_id=self.a.pk,numero=0,itens=[dict(contato_administradora_id=self.p.pk,boleto=True)])
+            item=prep.criar(self.c.pk,None)
+            prep.anexar(item.pk,SimpleUploadedFile('b.pdf',f'%PDF-1.4\n{conteudo}\n%%EOF\n'.encode()),'boleto','',None)
+            return item
+
+        def test_preparacao_constraints_retrato_e_reenvio(self):
+            import tempfile
+            from clientes import preparacao as prep
+            from clientes.models import DocumentoPreparacao, PreparacaoEnvio
+            with tempfile.TemporaryDirectory() as pasta, override_settings(ARQUIVOS_PRIVADOS_DIR=pasta):
+                primeira=self.preparar('x')
+                doc=primeira.documentos.get()
+                with self.assertRaises(IntegrityError),transaction.atomic():
+                    DocumentoPreparacao.objects.create(preparacao=primeira,categoria='boleto',arquivo='y.pdf',nome_original='y',tamanho=1,sha256=doc.sha256)
+                with self.assertRaises(IntegrityError),transaction.atomic():
+                    PreparacaoEnvio.objects.filter(pk=primeira.pk).update(status='confirmada')
+                with self.assertRaises(IntegrityError),transaction.atomic():
+                    DocumentoPreparacao.objects.filter(pk=doc.pk).update(categoria='outra')
+                prep.confirmar(primeira.pk,impressao=prep.plano(primeira)['impressao'],assunto='A',mensagem='M',autor=None)
+                segunda=self.preparar('x')
+                self.assertEqual(len(prep.plano(segunda)['conflitos']),1)
+                with self.assertRaises(ValidationError):
+                    prep.confirmar(segunda.pk,impressao=prep.plano(segunda)['impressao'],assunto='A',mensagem='M',autor=None)
+
+        def test_preparacao_confirmacoes_concorrentes_bloqueiam_reenvio(self):
+            import tempfile
+            from clientes import preparacao as prep
+            from clientes.models import PreparacaoEnvio
+            with tempfile.TemporaryDirectory() as pasta, override_settings(ARQUIVOS_PRIVADOS_DIR=pasta):
+                itens=[self.preparar('mesmo'),self.preparar('mesmo')]
+                impressoes=[prep.plano(i)['impressao'] for i in itens]
+                barrier=Barrier(2)
+                def confirmar(i):
+                    try:
+                        barrier.wait(timeout=5)
+                        prep.confirmar(itens[i].pk,impressao=impressoes[i],assunto='A',mensagem='M',autor=None)
+                        return 'confirmada'
+                    except ValidationError: return 'rejeitada'
+                    finally: connections.close_all()
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    resultados=[f.result(timeout=15) for f in [pool.submit(confirmar,i) for i in range(2)]]
+                self.assertCountEqual(resultados,['confirmada','rejeitada'])
+                self.assertEqual(PreparacaoEnvio.objects.filter(cliente=self.c,status='confirmada').count(),1)
+
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Validacao))
     if not result.wasSuccessful(): sys.exit(1)
     # Usuário fictício apenas no banco descartável, para inspeção visual local.
@@ -298,7 +346,7 @@ def worker():
             logradouro='Rua QA', numero='1', bairro='Centro', cidade='Fortaleza',
             estado='CE', cep='60000000', data_inicio=date(2020, 1, 1))
         alterar_administradora(c.pk, acao='vincular', administradora=a, data=date(2020, 1, 1))
-    print('PostgreSQL: 11 verificações aprovadas; schema e migrations instalados apenas no banco descartável.',flush=True)
+    print('PostgreSQL: 13 verificações aprovadas; schema e migrations instalados apenas no banco descartável.',flush=True)
 
 
 if __name__=='__main__': main()

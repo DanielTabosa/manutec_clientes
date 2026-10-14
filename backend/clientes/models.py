@@ -265,3 +265,4 @@ class Responsabilidade(models.Model):
 
 
 from .destinatarios_models import ConfiguracaoDestinatarios, RevisaoDestinatarios, ItemDestinatario  # noqa: E402,F401
+from .preparacao_models import PreparacaoEnvio, DocumentoPreparacao, DestinatarioPreparacao, ItemPreparacao  # noqa: E402,F401

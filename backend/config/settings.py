@@ -59,6 +59,8 @@ TIME_ZONE = "America/Fortaleza"
 USE_TZ = False
 USE_I18N = True
 STATIC_URL = "static/"
+# PDFs de preparações: fora do Git e sem URL pública; servidos só pelo painel autenticado.
+ARQUIVOS_PRIVADOS_DIR = Path(os.getenv("DJANGO_ARQUIVOS_PRIVADOS", BASE_DIR / "privado"))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],

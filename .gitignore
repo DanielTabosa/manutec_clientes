@@ -1,4 +1,5 @@
 .venv/
+backend/privado/
 .env
 __pycache__/
 *.py[cod]
