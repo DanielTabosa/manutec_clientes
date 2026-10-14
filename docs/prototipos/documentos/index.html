@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preparar documentos — protótipo</title>
+<!-- Protótipo local: dados fictícios, sem banco, API ou envio. Nenhum recurso externo. -->
+<style>
+  /* Camada 1 — primitivos */
+  :root {
+    --navy-900: #0f1f35; --navy-800: #1e3a5f; --navy-700: #2a4d7a; --navy-100: #e3eaf3; --navy-50: #f1f5fa;
+    --slate-950: #0b1220; --slate-900: #0f172a; --slate-700: #334155; --slate-600: #475569; --slate-400: #94a3b8;
+    --slate-300: #cbd5e1; --slate-200: #e2e8f0; --slate-100: #eef2f7; --slate-50: #f8fafc; --white: #fff;
+    --green-700: #15803d; --green-100: #dcfce7; --amber-800: #92400e; --amber-100: #fef3c7;
+    --red-700: #b91c1c; --red-100: #fee2e2; --blue-700: #1d4ed8; --blue-100: #dbeafe;
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+    --radius-sm: 6px; --radius-md: 10px;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  }
+  /* Camada 2 — semânticos */
+  :root {
+    --bg: var(--slate-50); --surface: var(--white); --surface-alt: var(--navy-50);
+    --text: var(--slate-900); --text-muted: var(--slate-600); --border: var(--slate-300); --border-soft: var(--slate-200);
+    --primary: var(--navy-800); --primary-hover: var(--navy-700); --on-primary: var(--white);
+    --confirm: var(--green-700); --on-confirm: var(--white);
+    --ok-bg: var(--green-100); --ok-text: var(--green-700);
+    --warn-bg: var(--amber-100); --warn-text: var(--amber-800);
+    --error-bg: var(--red-100); --error-text: var(--red-700);
+    --info-bg: var(--blue-100); --info-text: var(--blue-700);
+    --focus: var(--blue-700);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: var(--slate-950); --surface: #131c2e; --surface-alt: #18233a;
+      --text: var(--slate-100); --text-muted: var(--slate-400); --border: #33415a; --border-soft: #26324a;
+      --primary: #7aa2d6; --primary-hover: #94b6e2; --on-primary: var(--slate-950);
+      --confirm: #4ade80; --on-confirm: var(--slate-950);
+      --ok-bg: #12301f; --ok-text: #86efac; --warn-bg: #3a2a0c; --warn-text: #fcd34d;
+      --error-bg: #3b1515; --error-text: #fca5a5; --info-bg: #142a4d; --info-text: #93c5fd; --focus: #93c5fd;
+    }
+  }
+  /* Camada 3 — componentes */
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 var(--font); }
+  .notice { background: var(--warn-bg); color: var(--warn-text); padding: var(--space-2) var(--space-4); font-size: 14px; text-align: center; }
+  header.top { background: var(--navy-900); color: var(--white); padding: var(--space-3) var(--space-4); }
+  header.top .wrap { display: flex; gap: var(--space-3); align-items: baseline; flex-wrap: wrap; }
+  header.top strong { font-size: 17px; letter-spacing: .01em; }
+  header.top span { color: var(--slate-300); font-size: 14px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  main { padding: var(--space-5) var(--space-4) var(--space-6); }
+  h1 { font-size: 24px; line-height: 1.25; margin: 0 0 var(--space-1); }
+  h2 { font-size: 20px; line-height: 1.3; margin: 0 0 var(--space-2); }
+  h2:focus { outline: none; }
+  h3 { font-size: 16px; margin: 0; }
+  p { margin: 0 0 var(--space-3); }
+  .muted { color: var(--text-muted); }
+  .small { font-size: 14px; }
+
+  .stepper { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); padding: 0; margin: var(--space-4) 0 var(--space-5); }
+  .stepper button { width: 100%; min-height: 48px; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-muted); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+  .stepper button:disabled { cursor: not-allowed; opacity: .55; }
+  .stepper .num { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid currentColor; font-size: 13px; font-weight: 600; }
+  .stepper [aria-current="step"] { border-color: var(--primary); color: var(--primary); font-weight: 600; box-shadow: inset 0 -3px 0 var(--primary); }
+  .stepper .done { color: var(--text); }
+  .stepper .done .num { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+
+  .card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-md); padding: var(--space-5); }
+  .stack > * + * { margin-top: var(--space-4); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: space-between; align-items: center; margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border-soft); }
+  .actions .right { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-left: auto; }
+
+  .btn { min-height: 44px; padding: 0 var(--space-4); border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: var(--space-2); transition: background-color .15s, border-color .15s; }
+  .btn:hover { background: var(--surface-alt); }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-confirm { background: var(--confirm); border-color: var(--confirm); color: var(--on-confirm); }
+  .btn-confirm:hover { filter: brightness(1.08); background: var(--confirm); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+  .btn-icon { min-width: 44px; padding: 0 var(--space-3); font-weight: 500; }
+  .btn-icon.danger { color: var(--error-text); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  svg { width: 18px; height: 18px; flex: none; }
+
+  .client-list { display: grid; gap: var(--space-3); }
+  .client { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; background: var(--surface); }
+  .client:has(input:checked) { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); background: var(--surface-alt); }
+  .client input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--primary); }
+  .meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: 14px; color: var(--text-muted); }
+
+  label.field { display: block; font-weight: 600; font-size: 14px; margin-bottom: var(--space-1); }
+  input[type="text"], input[type="search"], select, textarea { width: 100%; min-height: 44px; padding: var(--space-2) var(--space-3); font: inherit; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  textarea { min-height: 150px; resize: vertical; }
+  .hint { font-size: 14px; color: var(--text-muted); margin-top: var(--space-1); }
+
+  .drop { border: 2px dashed var(--border); border-radius: var(--radius-md); padding: var(--space-5); text-align: center; background: var(--surface-alt); }
+  .drop.over { border-color: var(--primary); }
+  .drop-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: center; margin-top: var(--space-3); }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  .attachments { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+  .attachment { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--surface); }
+  .file-icon { width: 40px; height: 48px; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--error-bg); color: var(--error-text); font-size: 11px; font-weight: 700; }
+  .file-name { font-weight: 600; overflow-wrap: anywhere; }
+  .attachment-fields { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-2); margin-top: var(--space-2); }
+  .attachment-fields select, .attachment-fields input { min-height: 40px; font-size: 15px; }
+  .row-actions { display: flex; gap: var(--space-2); }
+
+  .alert { padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); font-size: 15px; }
+  .alert-error { background: var(--error-bg); color: var(--error-text); }
+  .alert-info { background: var(--info-bg); color: var(--info-text); }
+  .alert-ok { background: var(--ok-bg); color: var(--ok-text); }
+  .alert ul { margin: 0; padding-left: var(--space-5); }
+
+  .chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .chip-boleto { background: var(--info-bg); color: var(--info-text); }
+  .chip-nota { background: var(--ok-bg); color: var(--ok-text); }
+  .chip-warn { background: var(--warn-bg); color: var(--warn-text); }
+  .chip-error { background: var(--error-bg); color: var(--error-text); }
+  .chip-neutral { background: var(--slate-100); color: var(--slate-700); }
+  .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+  .recipients { display: grid; gap: var(--space-3); }
+  .recipient { display: grid; grid-template-columns: minmax(180px, 1.1fr) 1fr 1.4fr; gap: var(--space-4); align-items: start; padding: var(--space-4); border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--surface); }
+  .recipient.blocked { background: var(--surface-alt); }
+  .recipient .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; margin-bottom: var(--space-1); }
+  .recipient .email { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; }
+  .doc-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-1); font-size: 15px; }
+  .doc-list li { display: flex; gap: var(--space-2); align-items: center; overflow-wrap: anywhere; }
+  .summary { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); padding: var(--space-3) var(--space-4); background: var(--surface-alt); border-radius: var(--radius-md); font-size: 15px; }
+  .summary b { font-size: 18px; }
+
+  .review-item { padding: var(--space-3) 0; border-bottom: 1px solid var(--border-soft); }
+  .review-item:last-child { border-bottom: 0; }
+  .check { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-alt); cursor: pointer; font-weight: 600; }
+  .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--confirm); flex: none; }
+
+  dialog { width: min(820px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text); }
+  dialog::backdrop { background: rgba(15, 23, 42, .55); }
+  .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-soft); }
+  .dialog-head h2 { font-size: 17px; margin: 0; overflow-wrap: anywhere; }
+  .dialog-body { padding: var(--space-4); }
+  .dialog-body iframe { width: 100%; height: 60vh; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--white); }
+
+  @media (max-width: 760px) {
+    main { padding: var(--space-4) var(--space-4) var(--space-6); }
+    .card { padding: var(--space-4); }
+    .stepper { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-1); }
+    .stepper button { flex-direction: column; justify-content: center; padding: var(--space-1); font-size: 12px; text-align: center; gap: 2px; }
+    .grid-2, .attachment-fields { grid-template-columns: 1fr; }
+    .attachment { grid-template-columns: auto 1fr; }
+    .attachment .row-actions { grid-column: 1 / -1; justify-content: flex-end; }
+    .recipient { grid-template-columns: 1fr; gap: var(--space-3); }
+    .actions .right { width: 100%; }
+    .actions .right .btn { flex: 1; justify-content: center; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="notice" role="note"><strong>Protótipo com dados fictícios.</strong> Nada é gravado e nenhuma mensagem é enviada.</div>
+<header class="top"><div class="wrap"><strong>Manutec Clientes</strong><span>Preparação de documentos</span></div></header>
+
+<main class="wrap">
+  <h1>Preparar envio de documentos</h1>
+  <p class="muted">Escolha o cliente, anexe os documentos e confira o que cada destinatário receberia.</p>
+
+  <nav aria-label="Etapas">
+    <ol class="stepper" id="stepper"></ol>
+  </nav>
+  <div id="status" class="sr-only" aria-live="polite"></div>
+
+  <!-- Etapa 1 -->
+  <section class="card" data-step="1" aria-labelledby="t1">
+    <h2 id="t1" tabindex="-1">Cliente</h2>
+    <p class="muted small">Os documentos serão preparados para um único cliente. Destinatários e categorias vêm da configuração atual de destinatários.</p>
+    <div class="stack">
+      <div>
+        <label class="field" for="busca">Pesquisar cliente</label>
+        <input id="busca" type="search" placeholder="Nome, CNPJ ou administradora" autocomplete="off">
+      </div>
+      <div class="client-list" id="clientes" role="radiogroup" aria-label="Clientes"></div>
+      <p class="muted small" id="sem-clientes" hidden>Nenhum cliente encontrado.</p>
+    </div>
+    <div class="actions"><div class="right"><button class="btn btn-primary" data-next>Continuar</button></div></div>
+  </section>
+
+  <!-- Etapa 2 -->
+  <section class="card" data-step="2" aria-labelledby="t2" hidden>
+    <h2 id="t2" tabindex="-1">Anexos</h2>
+    <p class="muted small">Classifique cada PDF como boleto ou nota fiscal. As categorias são independentes: o cliente pode receber só um deles.</p>
+    <div class="stack">
+      <div class="drop" id="drop">
+        <p><strong>Arraste PDFs para cá</strong> ou escolha os arquivos.</p>
+        <p class="hint">Somente PDF, até 10 MB cada.</p>
+        <div class="drop-actions">
+          <label class="btn btn-primary" for="arquivos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.4 11.1 12.2 20.3a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>
+            Escolher PDFs
+          </label>
+          <input class="sr-only" id="arquivos" type="file" accept="application/pdf,.pdf" multiple>
+          <button class="btn" type="button" id="exemplos">Usar documentos de exemplo</button>
+        </div>
+      </div>
+      <div id="erros-arquivo" class="alert alert-error" role="alert" hidden></div>
+      <ul class="attachments" id="anexos"></ul>
+      <p class="muted small" id="sem-anexos">Nenhum documento anexado.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" data-prev>Voltar</button>
+      <div class="right"><button class="btn btn-primary" data-next>Continuar</button></div>
+    </div>
+  </section>
+
+  <!-- Etapa 3 -->
+  <section class="card" data-step="3" aria-labelledby="t3" hidden>
+    <h2 id="t3" tabindex="-1">Destinatários</h2>
+    <p class="muted small">Cada contato recebe somente as categorias configuradas para ele. Correções de destinatários ou categorias são feitas na tela de destinatários; aqui nada é alterado.</p>
+    <div class="stack">
+      <div class="summary" id="resumo-destinatarios"></div>
+      <div class="recipients" id="destinatarios"></div>
+    </div>
+    <div class="actions">
+      <button class="btn" data-prev>Voltar</button>
+      <div class="right"><button class="btn btn-primary" data-next>Continuar</button></div>
+    </div>
+  </section>
+
+  <!-- Etapa 4 -->
+  <section class="card" data-step="4" aria-labelledby="t4" hidden>
+    <h2 id="t4" tabindex="-1">Revisão</h2>
+    <div class="stack" id="revisao">
+      <div class="grid-2">
+        <div>
+          <label class="field" for="assunto">Assunto</label>
+          <input id="assunto" type="text">
+        </div>
+        <div>
+          <span class="field" style="display:block;font-weight:600;font-size:14px;margin-bottom:4px">Cliente</span>
+          <div id="revisao-cliente"></div>
+        </div>
+      </div>
+      <div>
+        <label class="field" for="mensagem">Mensagem</label>
+        <textarea id="mensagem"></textarea>
+        <p class="hint">O mesmo texto vai para todos os destinatários; os anexos variam conforme as categorias de cada um.</p>
+      </div>
+      <div>
+        <h3>Envios que seriam preparados</h3>
+        <div id="revisao-lista"></div>
+      </div>
+      <div id="revisao-fora" class="alert alert-info" hidden></div>
+      <label class="check"><input type="checkbox" id="confirmacao"> Conferi os destinatários aptos e seus anexos.</label>
+    </div>
+    <div class="actions">
+      <button class="btn" data-prev>Voltar</button>
+      <div class="right"><button class="btn btn-confirm" id="simular" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        Simular preparação</button></div>
+    </div>
+  </section>
+
+  <!-- Resultado -->
+  <section class="card" id="resultado" aria-labelledby="t5" hidden>
+    <h2 id="t5" tabindex="-1">Preparação simulada</h2>
+    <div class="stack">
+      <p class="alert alert-ok" id="resultado-resumo"></p>
+      <div id="resultado-lista"></div>
+      <p class="alert alert-info"><strong>Nenhuma mensagem foi enviada.</strong> Nada foi gravado. No sistema real, esta etapa ficará sujeita à configuração do remetente, à prevenção de reenvio e ao registro do resultado.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="voltar-revisao">Voltar à revisão</button>
+      <div class="right"><button class="btn btn-primary" id="nova">Nova preparação</button></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="visualizar" aria-labelledby="visualizar-titulo">
+  <div class="dialog-head">
+    <h2 id="visualizar-titulo"></h2>
+    <button class="btn btn-icon" id="fechar" aria-label="Fechar visualização">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <p class="muted small" id="visualizar-info"></p>
+    <iframe id="visualizar-frame" title="Conteúdo do PDF"></iframe>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+  const CATEGORIAS = {boleto: 'Boleto', nota: 'Nota fiscal'};
+  const MAX_BYTES = 10 * 1024 * 1024;
+
+  /* Dados fictícios. Categorias por contato simulam a configuração de destinatários vigente. */
+  const CLIENTES = [
+    {id: 101, nome: 'Condomínio Residencial Aurora', cnpj: '00.000.000/0001-91', administradora: 'Administradora Exemplo',
+     contatos: [
+       {nome: 'Ana Lima', funcao: 'Síndica', origem: 'Cliente', email: 'ana.lima@exemplo.test', categorias: ['boleto', 'nota']},
+       {nome: 'Bruno Costa', funcao: 'Financeiro', origem: 'Administradora', email: 'bruno.costa@exemplo.test', categorias: ['boleto']},
+       {nome: 'Carla Alves', funcao: 'Contabilidade', origem: 'Administradora', email: 'carla.alves@exemplo.test', categorias: ['nota']},
+       {nome: 'Davi Santos', funcao: 'Conselheiro', origem: 'Cliente', email: '', categorias: ['boleto', 'nota']},
+     ]},
+    {id: 102, nome: 'Edifício Mirante do Parque', cnpj: '00.000.000/0002-72', administradora: 'Sem administradora',
+     contatos: [
+       {nome: 'Eduardo Prado', funcao: 'Síndico', origem: 'Cliente', email: 'eduardo.prado@exemplo.test', categorias: ['boleto', 'nota']},
+     ]},
+  ];
+
+  const state = {step: 1, maxStep: 1, clienteId: 101, anexos: [], seq: 0};
+  const $ = s => document.querySelector(s);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v);
+    }
+    kids.flat().forEach(k => k != null && n.append(k));
+    return n;
+  };
+  const icon = path => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', '2'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = `<path d="${path}"/>`; return s; };
+  const ICON_EYE = 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z';
+  const ICON_TRASH = 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6';
+  const ICON_FILE = 'M14 3H6v18h12V7l-4-4Zm0 0v4h4';
+  const ICON_BLOCK = 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM5 5l14 14';
+  const announce = msg => { $('#status').textContent = ''; setTimeout(() => { $('#status').textContent = msg; }, 30); };
+  const cliente = () => CLIENTES.find(c => c.id === state.clienteId);
+  const chip = cat => el('span', {class: `chip chip-${cat}`, text: CATEGORIAS[cat]});
+  const formatBytes = b => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1).replace('.', ',')} KB` : `${(b / 1048576).toFixed(1).replace('.', ',')} MB`;
+
+  /* PDF mínimo válido gerado localmente para os documentos de exemplo. */
+  function gerarPdf(linhas) {
+    const esc = t => t.replace(/[\\()]/g, m => '\\' + m);
+    const conteudo = 'BT /F1 13 Tf 56 780 Td 20 TL ' + linhas.map(l => `(${esc(l)}) '`).join(' ') + ' ET';
+    const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+      `<< /Length ${conteudo.length} >>\nstream\n${conteudo}\nendstream`];
+    let pdf = '%PDF-1.4\n'; const offs = [];
+    objs.forEach((o, i) => { offs.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const xref = pdf.length;
+    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('');
+    pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    return new Uint8Array([...pdf].map(c => c.charCodeAt(0) & 0xff));
+  }
+  function exemplos() {
+    const c = cliente();
+    const comum = [`Cliente: ${c.nome} (fictício)`, 'Documento de demonstração, sem validade.'];
+    return [
+      {nome: 'boleto-exemplo.pdf', categoria: 'boleto', referencia: 'Vencimento 13/11/2026',
+       bytes: gerarPdf(['BOLETO DE EXEMPLO', ...comum, 'Vencimento: 13/11/2026', 'Valor: R$ 1.500,00'])},
+      {nome: 'nota-exemplo.pdf', categoria: 'nota', referencia: 'NFS-e 0000 (exemplo)',
+       bytes: gerarPdf(['NOTA FISCAL DE SERVIÇO - EXEMPLO', ...comum, 'Número: 0000', 'Competência: 10/2026'])},
+    ];
+  }
+
+  function pareceePdf(bytes) {
+    const ini = String.fromCharCode(...bytes.slice(0, 5));
+    const fim = String.fromCharCode(...bytes.slice(Math.max(0, bytes.length - 1024)));
+    return ini === '%PDF-' && fim.includes('%%EOF');
+  }
+
+  function adicionar(item) {
+    state.anexos.push({id: ++state.seq, visualizado: false, ...item});
+  }
+
+  async function receberArquivos(files) {
+    const erros = [];
+    for (const f of files) {
+      if (!/\.pdf$/i.test(f.name)) { erros.push(`${f.name}: somente arquivos PDF são aceitos.`); continue; }
+      if (f.size > MAX_BYTES) { erros.push(`${f.name}: o arquivo excede 10 MB.`); continue; }
+      if (state.anexos.some(a => a.nome === f.name)) { erros.push(`${f.name}: já existe um anexo com esse nome.`); continue; }
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      if (!pareceePdf(bytes)) { erros.push(`${f.name}: o arquivo não parece ser um PDF completo.`); continue; }
+      adicionar({nome: f.name, categoria: '', referencia: '', bytes});
+    }
+    mostrarErros(erros);
+    anexosAlterados();
+    if (files.length - erros.length > 0) announce(`${files.length - erros.length} documento(s) anexado(s). Classifique cada um.`);
+  }
+
+  function mostrarErros(erros) {
+    const box = $('#erros-arquivo');
+    box.replaceChildren();
+    box.hidden = !erros.length;
+    if (erros.length === 1) box.textContent = erros[0];
+    else if (erros.length) box.append(el('ul', {}, erros.map(e => el('li', {text: e}))));
+  }
+
+  function anexosAlterados() {
+    state.maxStep = Math.min(state.maxStep, 2);
+    $('#confirmacao').checked = false;
+    renderAnexos();
+    renderStepper();
+  }
+
+  /* Destinatários aptos: com e-mail e ao menos um anexo das categorias configuradas. */
+  function planoEnvio() {
+    const classificados = state.anexos.filter(a => a.categoria);
+    return cliente().contatos.map(c => {
+      const docs = classificados.filter(a => c.categorias.includes(a.categoria));
+      return {...c, docs, apto: !!c.email && docs.length > 0};
+    });
+  }
+
+  /* Renderização */
+  const ETAPAS = ['Cliente', 'Anexos', 'Destinatários', 'Revisão'];
+  function renderStepper() {
+    $('#stepper').replaceChildren(...ETAPAS.map((nome, i) => {
+      const n = i + 1;
+      const atual = n === state.step && $('#resultado').hidden;
+      return el('li', {}, el('button', {
+        type: 'button', class: n < state.step || (n === state.step && !atual) ? 'done' : '',
+        'aria-current': atual ? 'step' : false, disabled: n > state.maxStep,
+        onclick: () => irPara(n)
+      }, el('span', {class: 'num', text: String(n)}), ' ', el('span', {text: nome})));
+    }));
+  }
+
+  function renderClientes() {
+    const termo = $('#busca').value.trim().toLowerCase();
+    const lista = CLIENTES.filter(c => `${c.nome} ${c.cnpj} ${c.administradora}`.toLowerCase().includes(termo));
+    $('#clientes').replaceChildren(...lista.map(c => el('label', {class: 'client'},
+      el('input', {type: 'radio', name: 'cliente', value: c.id, checked: c.id === state.clienteId, onchange: () => trocarCliente(c.id)}),
+      el('div', {},
+        el('h3', {text: c.nome}),
+        el('div', {class: 'meta'},
+          el('span', {text: `CNPJ ${c.cnpj}`}), el('span', {text: c.administradora}),
+          el('span', {text: `${c.contatos.length} destinatário(s) configurado(s)`}))))));
+    $('#sem-clientes').hidden = lista.length > 0;
+  }
+
+  function trocarCliente(id) {
+    if (id === state.clienteId) return;
+    const tinha = state.anexos.length;
+    state.clienteId = id; state.anexos = []; state.maxStep = 1;
+    mostrarErros([]); anexosAlterados(); preencherTexto(true);
+    if (tinha) announce('Cliente alterado. Os anexos anteriores foram retirados desta preparação.');
+  }
+
+  function renderAnexos() {
+    $('#sem-anexos').hidden = state.anexos.length > 0;
+    $('#anexos').replaceChildren(...state.anexos.map(a => {
+      const selId = `cat-${a.id}`, refId = `ref-${a.id}`;
+      return el('li', {class: 'attachment', 'data-attachment': a.id},
+        el('div', {class: 'file-icon', 'aria-hidden': 'true', text: 'PDF'}),
+        el('div', {},
+          el('div', {class: 'file-name', text: a.nome}),
+          el('div', {class: 'meta'}, el('span', {text: formatBytes(a.bytes.length)}),
+            a.categoria ? null : el('span', {class: 'chip chip-warn', text: 'Classificação pendente'}),
+            a.visualizado ? el('span', {class: 'chip chip-neutral', text: 'Visualizado'}) : null),
+          el('div', {class: 'attachment-fields'},
+            el('div', {},
+              el('label', {class: 'sr-only', for: selId, text: `Categoria de ${a.nome}`}),
+              el('select', {id: selId, onchange: e => { a.categoria = e.target.value; anexosAlterados(); }},
+                el('option', {value: '', text: 'Categoria…', selected: !a.categoria}),
+                Object.entries(CATEGORIAS).map(([v, t]) => el('option', {value: v, text: t, selected: a.categoria === v})))),
+            el('div', {},
+              el('label', {class: 'sr-only', for: refId, text: `Referência de ${a.nome}`}),
+              el('input', {id: refId, type: 'text', value: a.referencia, placeholder: 'Referência (ex.: vencimento, nº da nota)',
+                oninput: e => { a.referencia = e.target.value; }})))),
+        el('div', {class: 'row-actions'},
+          el('button', {type: 'button', class: 'btn btn-icon', 'aria-label': `Visualizar ${a.nome}`, title: 'Visualizar', onclick: () => visualizar(a)}, icon(ICON_EYE)),
+          el('button', {type: 'button', class: 'btn btn-icon danger', 'aria-label': `Remover ${a.nome}`, title: 'Remover', onclick: () => remover(a)}, icon(ICON_TRASH))));
+    }));
+  }
+
+  function remover(a) {
+    state.anexos = state.anexos.filter(x => x !== a);
+    anexosAlterados();
+    announce(`${a.nome} removido.`);
+    const primeiro = $('#anexos button'); (primeiro || $('#arquivos').labels[0] || $('#exemplos')).focus?.();
+  }
+
+  let urlAtual = null;
+  function visualizar(a) {
+    if (urlAtual) URL.revokeObjectURL(urlAtual);
+    urlAtual = URL.createObjectURL(new Blob([a.bytes], {type: 'application/pdf'}));
+    $('#visualizar-titulo').textContent = a.nome;
+    $('#visualizar-info').textContent = `${a.categoria ? CATEGORIAS[a.categoria] : 'Sem categoria'} · ${formatBytes(a.bytes.length)}. Confira se o conteúdo corresponde ao cliente e à categoria escolhida.`;
+    $('#visualizar-frame').src = urlAtual;
+    a.visualizado = true;
+    $('#visualizar').showModal();
+  }
+
+  function listaDocs(docs) {
+    if (!docs.length) return el('p', {class: 'muted small', text: 'Nenhum anexo das categorias deste contato.'});
+    return el('ul', {class: 'doc-list'}, docs.map(d => el('li', {}, icon(ICON_FILE), el('span', {text: d.nome}), chip(d.categoria))));
+  }
+
+  function renderDestinatarios() {
+    const plano = planoEnvio();
+    const aptos = plano.filter(p => p.apto);
+    const semEmail = plano.filter(p => !p.email).length;
+    const semAnexo = plano.filter(p => p.email && !p.docs.length).length;
+    $('#resumo-destinatarios').replaceChildren(
+      el('span', {}, el('b', {text: String(aptos.length)}), ' apto(s) a receber'),
+      el('span', {}, el('b', {text: String(semEmail)}), ' sem e-mail'),
+      el('span', {}, el('b', {text: String(semAnexo)}), ' sem anexo aplicável'));
+    $('#destinatarios').replaceChildren(...plano.map(p => {
+      let situacao;
+      if (!p.email) situacao = el('span', {class: 'chip chip-error'}, icon(ICON_BLOCK), 'Sem e-mail — não recebe por e-mail');
+      else if (!p.docs.length) situacao = el('span', {class: 'chip chip-neutral', text: 'Nenhum anexo para enviar'});
+      else situacao = el('span', {class: 'chip chip-nota', text: 'Apto'});
+      return el('article', {class: `recipient${p.apto ? '' : ' blocked'}`, 'data-recipient': p.nome, 'aria-label': p.nome},
+        el('div', {},
+          el('h3', {text: p.nome}),
+          el('div', {class: 'muted small', text: `${p.funcao} · ${p.origem}`}),
+          el('div', {class: 'email', text: p.email || 'Sem e-mail cadastrado'})),
+        el('div', {},
+          el('div', {class: 'label', text: 'Categorias configuradas'}),
+          el('div', {class: 'chips'}, p.categorias.map(chip))),
+        el('div', {},
+          el('div', {class: 'label', text: p.email ? 'Anexos que receberia' : 'Anexos aplicáveis (bloqueado)'}),
+          listaDocs(p.docs), el('div', {style: 'margin-top:8px'}, situacao)));
+    }));
+  }
+
+  function preencherTexto(forcar) {
+    const c = cliente();
+    if (forcar || !$('#assunto').value) $('#assunto').value = `Documentos — ${c.nome}`;
+    if (forcar || !$('#mensagem').value) $('#mensagem').value =
+      `Prezados,\n\nSeguem em anexo os documentos referentes aos serviços prestados ao ${c.nome}.\n\nPermanecemos à disposição.\n\nAtenciosamente,\nManutec Válvulas`;
+  }
+
+  function renderRevisao() {
+    const c = cliente(), plano = planoEnvio(), aptos = plano.filter(p => p.apto);
+    $('#revisao-cliente').replaceChildren(el('strong', {text: c.nome}), el('div', {class: 'muted small', text: `CNPJ ${c.cnpj}`}));
+    $('#revisao-lista').replaceChildren(...(aptos.length ? aptos.map(p => el('div', {class: 'review-item'},
+      el('div', {}, el('strong', {text: p.nome}), ' ', el('span', {class: 'email muted', text: `<${p.email}>`})),
+      listaDocs(p.docs))) : [el('p', {class: 'muted', text: 'Nenhum destinatário apto. Volte e confira anexos ou configuração.'})]));
+    const fora = plano.filter(p => !p.apto);
+    const box = $('#revisao-fora');
+    box.hidden = !fora.length;
+    box.textContent = fora.length ? `Fora desta preparação: ${fora.map(p => `${p.nome} (${p.email ? 'sem anexo aplicável' : 'sem e-mail'})`).join('; ')}.` : '';
+    atualizarBotaoSimular();
+  }
+
+  function atualizarBotaoSimular() {
+    $('#simular').disabled = !$('#confirmacao').checked || !planoEnvio().some(p => p.apto);
+  }
+
+  /* Validação por etapa */
+  function validar(n) {
+    if (n === 1) return state.clienteId ? null : 'Escolha um cliente.';
+    if (n === 2) {
+      if (!state.anexos.length) return 'Anexe ao menos um documento.';
+      const pend = state.anexos.filter(a => !a.categoria);
+      if (pend.length) return `Classifique: ${pend.map(a => a.nome).join(', ')}.`;
+    }
+    return null;
+  }
+
+  function irPara(n) {
+    if (n > state.maxStep) return;
+    state.step = n;
+    $('#resultado').hidden = true;
+    document.querySelectorAll('[data-step]').forEach(s => { s.hidden = Number(s.dataset.step) !== n; });
+    if (n === 3) renderDestinatarios();
+    if (n === 4) { preencherTexto(false); renderRevisao(); }
+    renderStepper();
+    document.getElementById(`t${n}`).focus();
+  }
+
+  function avancar() {
+    const erro = validar(state.step);
+    if (erro) {
+      if (state.step === 2) mostrarErros([erro]);
+      announce(erro); return;
+    }
+    if (state.step === 2) mostrarErros([]);
+    state.maxStep = Math.max(state.maxStep, state.step + 1);
+    irPara(state.step + 1);
+  }
+
+  function simular() {
+    const aptos = planoEnvio().filter(p => p.apto);
+    const total = aptos.reduce((s, p) => s + p.docs.length, 0);
+    document.querySelectorAll('[data-step]').forEach(s => { s.hidden = true; });
+    $('#resultado').hidden = false;
+    $('#resultado-resumo').textContent = `Simulação concluída: ${aptos.length} destinatários, ${total} anexo(s) no total, para ${cliente().nome}.`;
+    $('#resultado-lista').replaceChildren(...aptos.map(p => el('div', {class: 'review-item'},
+      el('strong', {text: p.nome}), ' ', el('span', {class: 'muted', text: `— ${p.docs.map(d => d.nome).join(', ')}`}))));
+    renderStepper();
+    $('#t5').focus();
+  }
+
+  /* Eventos */
+  document.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', avancar));
+  document.querySelectorAll('[data-prev]').forEach(b => b.addEventListener('click', () => irPara(state.step - 1)));
+  $('#busca').addEventListener('input', renderClientes);
+  $('#arquivos').addEventListener('change', e => { receberArquivos([...e.target.files]); e.target.value = ''; });
+  $('#exemplos').addEventListener('click', () => {
+    const novos = exemplos().filter(x => !state.anexos.some(a => a.nome === x.nome));
+    novos.forEach(adicionar); mostrarErros([]); anexosAlterados();
+    announce(novos.length ? 'Documentos de exemplo anexados e classificados.' : 'Os documentos de exemplo já estão anexados.');
+  });
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => receberArquivos([...e.dataTransfer.files]));
+  $('#confirmacao').addEventListener('change', atualizarBotaoSimular);
+  $('#assunto').addEventListener('input', () => { $('#confirmacao').checked = false; atualizarBotaoSimular(); });
+  $('#mensagem').addEventListener('input', () => { $('#confirmacao').checked = false; atualizarBotaoSimular(); });
+  $('#simular').addEventListener('click', simular);
+  $('#voltar-revisao').addEventListener('click', () => { $('#confirmacao').checked = false; irPara(4); });
+  $('#nova').addEventListener('click', () => {
+    state.anexos = []; state.maxStep = 1; $('#confirmacao').checked = false; preencherTexto(true);
+    mostrarErros([]); renderAnexos(); irPara(1);
+  });
+  $('#fechar').addEventListener('click', () => $('#visualizar').close());
+  $('#visualizar').addEventListener('close', () => { $('#visualizar-frame').src = 'about:blank'; renderAnexos(); });
+
+  renderClientes(); renderAnexos(); renderStepper(); preencherTexto(true);
+})();
+</script>
+</body>
+</html>

@@ -1,36 +1,34 @@
-# Retomada — protótipo autorizado, implementação pausada
+# Retomada — protótipo de documentos entregue; plano até produção proposto
 
-## Encerramento em 07/10/2026
+## Sessão de 14/10/2026
 
-Usuário pediu atualizar o handoff e encerrar por hoje. O protótipo navegável já foi autorizado com “sim”; retomar quando solicitado, sem pedir novamente aprovação do desenho.
+O usuário relatou prazo estourado e pediu para adiantar o projeto, usar as skills /design e /ui-ux-pro-max no frontend (Impeccable quando fizer sentido) e estimar a entrega em produção.
 
-## Ponto exato de retomada
+Entregue: `docs/prototipos/documentos/index.html`, um HTML único sem recursos externos e com dados fictícios. Fluxo: cliente → anexos → destinatários → revisão → "Simular preparação". O roteiro `backend/verificar_prototipo_documentos.cjs` passou no Edge, e os screenshots desktop e mobile foram inspecionados (ficam em `.venv/qa/prototipo`, ignorado). Os tokens de design em três camadas estão no `<style>` do protótipo: navy institucional, verde só para confirmação, fontes do sistema, modo escuro e foco visível. A Impeccable não foi usada, porque não compensava num protótipo de uma tela; reavaliar no frontend real. Não houve banco, API, envio nem mudança de regra.
 
-A interface ainda NÃO foi criada. Existe apenas o roteiro inicial `backend/verificar_prototipo_documentos.cjs`, não integrado à suíte automática. Primeira execução Playwright falhou com ERR_FILE_NOT_FOUND porque falta `docs/prototipos/documentos/index.html`; não apresentar como teste aprovado ou protótipo entregue.
+Comando de validação (Node do Codex):
+`NODE_PATH=C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe backend/verificar_prototipo_documentos.cjs` (QA_SCREENSHOT_DIR opcional, sob `.venv`).
 
-Próxima ação: implementar esse HTML separado do painel Django, com cliente, contatos e PDFs inteiramente fictícios. Fluxo aprovado: escolher cliente → anexar/classificar boleto e/ou nota → conferir anexos por destinatário → revisar assunto/texto e confirmar. Ana recebe ambos, Bruno boleto, Carla nota; Davi sem e-mail aparece impedido. Categorias independentes, sem mudar configurações silenciosamente. Ação final “Simular preparação”; nenhuma mensagem enviada. Sem banco, API ou persistência.
+## Agents
 
-O roteiro cobre categorias, falta de e-mail, confirmação, retorno à revisão, remoção, PDF inválido, visualização, mobile e ausência de requisições HTTP. Depois de implementar, executar e inspecionar screenshots. Node disponível em `C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe`; NODE_PATH deve apontar para `C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules`. Playwright com chromium channel msedge iniciou com sucesso. QA_SCREENSHOT_DIR opcional deve ficar sob `.venv`, ignorado. Servir somente a pasta do protótipo em localhost para demonstração.
+Os arquivos `agents/*.md` (ORQUESTRADOR, REQUISITOS, BANCO_DADOS, BACKEND, FRONTEND, QA, SEGURANCA, DEVOPS) descrevem papéis e não são executáveis. Não existe `.claude/agents/`. O orquestrador declara não iniciar agentes. A execução é feita pelo agente principal, consultando o papel pertinente. Criar subagentes reais foi proposto, mas não autorizado.
+
+## Plano proposto até produção (aguarda aprovação do usuário)
+
+Estimativa entregue ao usuário: **MVP em produção em 27/11/2026**, ou **06/11/2026** com escopo reduzido (envio por e-mail com anexos manuais, sem buscar no Conta Azul). As datas dependem das entradas do usuário: dados SMTP do cPanel, hospedagem/servidor do Django e base definitiva de clientes.
+
+1. Fluxo real de preparação no painel Django: modelo de lote/envio com histórico, migration, permissões, prevenção de reenvio, testes SQLite e PostgreSQL.
+2. Envio por SMTP: remetente, registro de aceitação/falha e envio de teste para endereço do próprio usuário.
+3. Busca de boleto (`contaazul_boleto.py`) e NFS-e (ZIP) dentro do fluxo, com associação conferida pelo usuário.
+4. Implantação: hospedagem a definir, HTTPS, DEBUG desligado, segredos, backup e restauração.
+5. Homologação com a base definitiva e treinamento.
+
+Fora do MVP: WhatsApp, Auvo, n8n, IA e frontend separado (SPA).
 
 ## Decisões preservadas
 
-- Clientes atuais são reais, mas cadastros de teste possivelmente imprecisos. Associação/alinhamento só após preenchimento da base definitiva. Não repetir consultas, preparar lista de faltantes, importar ou corrigir cadastros pela prévia anterior.
-- Painel de destinatários concluído e aceito; cinco categorias independentes. Contatos sem e-mail podem existir, mas não receber e-mail. Preservar regras e dados.
-- Desenho em `docs/PREPARACAO_ENVIO_DOCUMENTOS.md`. Envio real, SMTP, associação persistida e integração ao painel continuam pendentes. Não implementar automaticamente.
-- Ao concluir tarefas: resultado, próximo passo concreto e perguntar se pode continuar. Commit/push rotineiros autorizados. Nesta sessão respeitar encerramento, sem iniciar etapa nova.
-
-## Evidências anteriores
-
-- `backend/contaazul_boleto.py`: download direto comprovado, PDF ignorado `.venv/contaazul/producao/downloads/boleto-20261013.pdf`. Não repetir download preventivamente.
-- `backend/contaazul_nfse.py`: ZIP `C:/Users/didit/Downloads/NFSe-10-2026 (2).zip` preservado, 139 pares locais válidos, 136 notas reconhecidas e três CANCELAMENTO_MANUAL. Conteúdo textual/autenticidade dos PDFs não auditados.
-- `backend/contaazul_previa_clientes.py`: PostgreSQL READ ONLY, nenhum vínculo persistido. CSV ignorado `.venv/contaazul/producao/previas/clientes-nfse-202610.csv`: uma sugestão, 135 notas sem cadastro (110 CNPJs), três não conferidas. Resultado de base de teste; não diagnosticar base definitiva. Não sobrescrever ou expor relatório.
-- 54 testes Conta Azul simulados passaram anteriormente. Leitura PostgreSQL não valida escrita ou SQLite. Não há necessidade de banco/migrations para este encerramento ou protótipo.
-- Commits anteriores: 4acb467 download/conferência; 91cfa9b prévia; 8c5b1f2 adiamento do alinhamento/desenho.
-
-## Ambiente e segurança
-
-Não ler/expor credenciais sob `.venv/contaazul`. Produção exige --producao, sem fallback. Autorização já concluída; não repetir preventivamente. HTTP 401: conferir apenas existência de tokens-pendentes.env e orientar renovação manual, sem sobrescrever tokens pendentes.
-
-Preservar backup `.venv/backups/pre_0007_20260928/pre_0007.dump` e verification.json. Migration 0007 já aplicada. `C:/dev/manutec-faturamento` foi referência somente de leitura.
-
-Branch main, remoto origin. Shell escalado pode exigir `git -c safe.directory=C:/dev/manutec-clientes ...` por diferença de proprietário; usar exceção por comando. Conferir status/log para publicação do encerramento. Validar conteúdo/diff e sintaxe do roteiro; validação funcional continua pendente até existir interface.
+- A base atual de clientes é de teste. Associação/alinhamento só com a base definitiva; não reutilizar a prévia de 07/10.
+- Cinco categorias independentes. Contato sem e-mail não recebe e-mail, e o cadastro é mantido. Correções de destinatários ficam na tela própria.
+- Envio real, SMTP, associação persistida e integração ao painel não estão implementados nem autorizados.
+- Evidências Conta Azul (boleto, NFS-e, prévia) e cuidados com credenciais/backup: ver `PROJECT_STATE.md` e `docs/PREPARACAO_ENVIO_DOCUMENTOS.md`. Não ler credenciais em `.venv/contaazul`. HTTP 401 exige renovação manual.
+- Git: branch main, remoto origin; usar `git -c safe.directory=C:/dev/manutec-clientes`.

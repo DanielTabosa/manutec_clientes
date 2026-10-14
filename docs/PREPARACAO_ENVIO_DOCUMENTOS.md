@@ -23,7 +23,7 @@ Exemplo fictício de conferência:
 
 A interface deve distinguir arquivo anexado de documento corretamente identificado: o usuário confere o conteúdo antes da confirmação. A associação automática por CNPJ fica adiada conforme decisão acima. Antes do envio real, definir remetente/SMTP, permissão de envio, tratamento de contatos com o mesmo e-mail, prevenção de duplicidade/reenvio e registro de aceitação/falha; não assumir que aceitação pelo provedor prova entrega.
 
-Próximo passo proposto: protótipo visual navegável desse fluxo, com cliente/contatos/PDFs fictícios, sem banco, API Conta Azul ou envio. Protótipo já autorizado; retomar quando o usuário solicitar. Esta etapa foi somente documental; conteúdo, links relativos e diff conferidos, sem migrations, gravações em banco ou testes SQLite/PostgreSQL.
+**Protótipo implementado em 14/10/2026:** [prototipos/documentos/index.html](prototipos/documentos/index.html). Abrir o arquivo no navegador; não precisa de servidor. Clientes, contatos e PDFs são fictícios (PDFs gerados no próprio navegador); arquivos locais escolhidos pelo usuário ficam só na memória da página. Validação: `backend/verificar_prototipo_documentos.cjs` (Playwright/Edge) aprovado, com screenshots desktop e mobile em `.venv/qa/prototipo` (ignorado). Classificação de arquivo enviado é sempre manual (sem inferir pelo nome); alterar anexos ou texto desmarca a confirmação. Esta etapa foi somente documental; conteúdo, links relativos e diff conferidos, sem migrations, gravações em banco ou testes SQLite/PostgreSQL.
 
 ## Download direto de boleto validado — 06/10/2026
 
