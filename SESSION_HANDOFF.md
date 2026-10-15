@@ -7,6 +7,7 @@
 3. ✅ Conta Azul no fluxo: boleto com escolha da parcela e NFS-e do ZIP; consulta de CNPJ com fontes reserva.
 3b. ✅ Interface própria (`backend/painel`), redesenho com a identidade do site (direção D), início focado na base, importação CSV e retaguarda com o mesmo design.
 3c. ✅ 14/10: banco instalado zerado (usuários mantidos) e contratos cadastrados no sistema (tipos editáveis, situação ativo/suspenso/inativo, vários por cliente), com "Ver todos" no topo dos quadros do início. Detalhes em `PROJECT_STATE.md`.
+3d. ✅ 15/10: demonstração local aos gestores; tela de login reescrita com foco no cadastro de clientes (boletos e notas como extra). Ao encerrar, o usuário avisou que em breve trata de integração e produção.
 4. ▶ **Próxima fase (combinada com o usuário ao encerrar em 14/10): colocar em produção.** Começar por aqui na próxima sessão. Pendente decisão dele: hospedagem (VPS recomendado; cPanel só com Python App + PostgreSQL; ou PC do escritório) e acesso (internet ou só escritório). Renovação de token do Conta Azul segue manual.
    - Sugerido antes: envio real de uma preparação completa para um contato com o e-mail do próprio usuário.
 5. Homologação com a base definitiva: o usuário vai cadastrar ou importar os dados reais (administradoras → clientes → contatos → contratos).
