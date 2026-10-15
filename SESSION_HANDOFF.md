@@ -1,4 +1,4 @@
-# Retomada — base zerada e contratos cadastrados no sistema
+# Retomada — próxima fase: implantação em produção
 
 ## Plano aprovado em 14/10/2026 (meta: MVP em produção em 27/11/2026)
 
@@ -7,14 +7,14 @@
 3. ✅ Conta Azul no fluxo: boleto com escolha da parcela e NFS-e do ZIP; consulta de CNPJ com fontes reserva.
 3b. ✅ Interface própria (`backend/painel`), redesenho com a identidade do site (direção D), início focado na base, importação CSV e retaguarda com o mesmo design.
 3c. ✅ 14/10: banco instalado zerado (usuários mantidos) e contratos cadastrados no sistema (tipos editáveis, situação ativo/suspenso/inativo, vários por cliente), com "Ver todos" no topo dos quadros do início. Detalhes em `PROJECT_STATE.md`.
-4. ⏸ Implantação **interrompida pelo usuário em 14/10**; retomar só quando ele pedir. Pendente decisão dele: hospedagem (VPS recomendado; cPanel só com Python App + PostgreSQL; ou PC do escritório) e acesso (internet ou só escritório). Renovação de token do Conta Azul segue manual.
+4. ▶ **Próxima fase (combinada com o usuário ao encerrar em 14/10): colocar em produção.** Começar por aqui na próxima sessão. Pendente decisão dele: hospedagem (VPS recomendado; cPanel só com Python App + PostgreSQL; ou PC do escritório) e acesso (internet ou só escritório). Renovação de token do Conta Azul segue manual.
    - Sugerido antes: envio real de uma preparação completa para um contato com o e-mail do próprio usuário.
 5. Homologação com a base definitiva: o usuário vai cadastrar ou importar os dados reais (administradoras → clientes → contatos → contratos).
-   - **Aguardando o usuário:** a lista de tipos de contrato da Manutec. Ele pode cadastrá-los em Contratos › Tipos de contrato ou mandar a lista.
+   - Tipos de contrato cadastrados no banco instalado em 14/10, a pedido do usuário: Monitoramento Superior, Monitoramento Inferior, Manutenção de VRP e Manutenção de Bombas. Cliente com vários serviços tem um contrato por tipo; não há tipos combinados (cresceria a cada serviço novo). Novos tipos pela tela Contratos › Tipos de contrato. Se um único contrato assinado cobrir vários serviços, o usuário avisa: aí seria um contrato com vários serviços (muda o modelo).
 
 ## Estado técnico
 
-- Banco instalado sem dados de teste. Backup de antes do reset: `.venv/backups/pre_reset_20261014/` (verificado).
+- Banco instalado sem dados de teste; só usuários e os 4 tipos de contrato. Backup de antes do reset: `.venv/backups/pre_reset_20261014/` (verificado).
 - Migration 0009 aplicada ao banco instalado. Mudanças de modelo exigem 0010+.
 - Contratos: modelos em `clientes/contratos_models.py`, telas em `painel/contratos.py`. A conferência com o Conta Azul reaproveita `clientes/contratos.py`.
 - `.env` local: SMTP configurado e `DJANGO_CONTAAZUL_AMBIENTE=producao` (somente GET). `config/test_settings.py` isola os testes dessas integrações.
@@ -30,7 +30,7 @@
 ## Decisões preservadas
 
 - Foco do sistema (usuário, 14/10): base de dados de clientes robusta; o envio é complemento.
-- Contratos (usuário, 14/10): cadastrados aqui, vários por cliente; Conta Azul só como conferência opcional, sem gravar.
+- Contratos (usuário, 14/10): cadastrados aqui, vários por cliente (um por tipo de serviço); Conta Azul só como conferência opcional, sem gravar.
 - Importação CSV: cliente exige razão social e CNPJ; o resto é opcional e vira pendência. Nada existente é sobrescrito.
 - Voltar atrás: voltar para rascunho se nenhum e-mail saiu; cancelar até a operação terminar.
 - Não enviar e-mails reais a clientes em testes. Nunca pedir ou ler senhas no chat. Não ler credenciais em `.venv/contaazul`. Sem renovação automática de token. Preservar os backups `pre_0007`, `pre_0008` e `pre_reset_20261014`.

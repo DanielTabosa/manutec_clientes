@@ -38,6 +38,7 @@ Estas regras registram decisões vigentes. Contatos de administradoras e respons
 Decisão do usuário em 14/10/2026: os contratos são cadastrados no sistema, não puxados do Conta Azul (um cliente pode ter dois contratos de tipos diferentes).
 
 - Tipo de contrato vem de uma lista mantida pelo usuário na tela. Tipo em uso não é apagado; pode sair da lista de contratos novos.
+- Tipos atuais (14/10/2026): Monitoramento Superior, Monitoramento Inferior, Manutenção de VRP e Manutenção de Bombas. Cliente com vários serviços tem um contrato por tipo; não há tipos combinados. Novos serviços entram como novos tipos.
 - Situação: ativo, suspenso ou inativo. Fim opcional e nunca anterior ao início. Contrato não é apagado.
 - O Conta Azul serve só para conferência opcional, sem gravar nada.
 

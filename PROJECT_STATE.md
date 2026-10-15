@@ -219,3 +219,5 @@ Pedido do usuário: deixar o sistema sem dados de teste antes dos cadastros reai
 
 Validação: 150 testes Django/SQLite (7 novos em `painel/test_contratos.py` e o quadro do início atualizado), 15 verificações PostgreSQL descartáveis (nova: restrições e proteção de contratos) e `backend/verificar_contratos.cjs` (Playwright/Edge, banco descartável): início, tipo novo, contrato na ficha, lista filtrada e celular sem rolagem horizontal. Corrigido na verificação visual: tipo criado na tela nascia indisponível. Banco descartável removido; 0009 aplicada ao banco instalado (só cria as duas tabelas).
 
+Tipos de contrato informados pelo usuário e cadastrados no banco instalado em 14/10: Monitoramento Superior, Monitoramento Inferior, Manutenção de VRP e Manutenção de Bombas. Cliente com vários serviços recebe um contrato por tipo, sem tipos combinados. Próxima fase: implantação em produção.
+
