@@ -15,7 +15,7 @@
 
 ## Estado técnico
 
-- Banco instalado sem dados de teste; só usuários e os 4 tipos de contrato. Backup de antes do reset: `.venv/backups/pre_reset_20261014/` (verificado).
+- Banco instalado com dados reais inseridos pelo usuário (contagem em 15/10: 358 clientes, 24 administradoras, 1 contato, 1 contrato; preparação nº 3 criada na reunião). Fazer backup antes de qualquer migração ou implantação. Backup de antes do reset: `.venv/backups/pre_reset_20261014/` (verificado).
 - Migration 0009 aplicada ao banco instalado. Mudanças de modelo exigem 0010+.
 - Contratos: modelos em `clientes/contratos_models.py`, telas em `painel/contratos.py`. A conferência com o Conta Azul reaproveita `clientes/contratos.py`.
 - `.env` local: SMTP configurado e `DJANGO_CONTAAZUL_AMBIENTE=producao` (somente GET). `config/test_settings.py` isola os testes dessas integrações.
