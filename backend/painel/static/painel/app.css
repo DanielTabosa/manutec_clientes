@@ -442,3 +442,6 @@ dialog.gaveta::backdrop { background: rgba(7, 26, 61, .45); backdrop-filter: blu
   *, *::before, *::after { transition: none !important; animation: none !important; }
   @view-transition { navigation: none; }
 }
+
+/* Campos ocultos por script (ex.: CNPJ x CPF no cadastro). */
+[hidden] { display: none !important; }

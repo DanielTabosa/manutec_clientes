@@ -13,10 +13,10 @@ from django.views.decorators.http import require_POST
 from clientes import destinatarios as domain
 from clientes import destinatarios_fluxo
 from clientes.consulta import ErroConsulta, consultar_cep, consultar_cnpj
-from clientes.forms import (AdministradoraForm, CadastroClienteForm, ClienteEnderecoForm, TrocaCNPJForm,
+from clientes.forms import (AdministradoraForm, CadastroClienteForm, ClienteForm, EnderecoForm, TrocaCNPJForm,
                             VinculoAdministradoraForm)
 from clientes.models import (Administradora, Cliente, ClienteAdministradora, Contato, ContatoAdministradora,
-                             HistoricoCNPJ)
+                             Endereco, HistoricoCNPJ)
 from clientes.services import alterar_administradora, cadastrar_cliente, trocar_cnpj
 
 from .views import exige
@@ -43,7 +43,7 @@ ROTULOS = dict(razao_social='Razão social', nome_fantasia='Nome fantasia', logr
 
 def estilizar(form):
     for nome, campo in form.fields.items():
-        if nome in ROTULOS:
+        if nome in ROTULOS and not getattr(campo, 'rotulo_fixo', False):
             campo.label = ROTULOS[nome]
         w = campo.widget
         if isinstance(w, (forms.CheckboxInput, forms.HiddenInput)):
@@ -112,30 +112,66 @@ def cliente_novo(request):
         except ValidationError as exc:
             aplicar_erros(form, exc)
         else:
-            messages.success(request, 'Cliente cadastrado com CNPJ e endereço.')
+            messages.success(request, f'Cliente cadastrado com {"CPF" if obj.pessoa_fisica else "CNPJ"} e endereço principal.')
             return redirect('painel:cliente', obj.pk)
     return formulario(request, form, titulo='Novo cliente', secao='clientes', voltar=reverse('painel:clientes'),
                       rotulo='Cadastrar cliente', crumbs=[('Clientes', reverse('painel:clientes'))], consultas=True,
-                      descricao='Ao completar o CNPJ, os dados são consultados automaticamente. Confira antes de salvar.')
+                      descricao='Pessoa jurídica: ao completar o CNPJ, os dados são consultados automaticamente. '
+                                'Pessoa física: informe o CPF e o nome completo. Confira antes de salvar.')
 
 
 @exige('clientes.change_cliente')
 def cliente_editar(request, pk):
     obj = get_object_or_404(Cliente, pk=pk)
-    form = ClienteEnderecoForm(request.POST or None, instance=obj)
+    form = ClienteForm(request.POST or None, instance=obj)
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, 'Cadastro atualizado.')
         return redirect('painel:cliente', obj.pk)
     voltar = reverse('painel:cliente', args=[obj.pk])
-    return formulario(request, form, titulo='Editar cadastro', secao='clientes', voltar=voltar, consultas=True,
-                      crumbs=[('Clientes', reverse('painel:clientes')), (obj.razao_social, voltar)],
-                      descricao='O CNPJ e a administradora têm histórico próprio e são alterados nas ações da ficha do cliente.')
+    descricao = ('O tipo de pessoa não muda depois do cadastro. ' +
+                 ('' if obj.pessoa_fisica else 'O CNPJ e a administradora têm histórico próprio e são alterados nas ações da ficha. ') +
+                 'Endereços são editados no quadro Endereços de atendimento da ficha.')
+    return formulario(request, form, titulo='Editar cadastro', secao='clientes', voltar=voltar,
+                      crumbs=[('Clientes', reverse('painel:clientes')), (obj.razao_social, voltar)], descricao=descricao)
+
+
+@exige('clientes.change_cliente')
+def endereco_novo(request, cliente_pk):
+    cliente = get_object_or_404(Cliente, pk=cliente_pk)
+    form = EnderecoForm(request.POST or None, instance=Endereco(cliente=cliente, descricao=''))
+    return _salvar_endereco(request, form, cliente, 'Novo endereço de atendimento', 'Cadastrar endereço')
+
+
+@exige('clientes.change_cliente')
+def endereco_editar(request, pk):
+    obj = get_object_or_404(Endereco.objects.select_related('cliente'), pk=pk)
+    form = EnderecoForm(request.POST or None, instance=obj)
+    return _salvar_endereco(request, form, obj.cliente, f'Editar endereço — {obj.descricao}', 'Salvar')
+
+
+def _salvar_endereco(request, form, cliente, titulo, rotulo):
+    if request.method == 'POST' and form.is_valid():
+        try:
+            form.save()
+        except ValidationError as exc:
+            aplicar_erros(form, exc)
+        else:
+            messages.success(request, 'Endereço salvo.' + ('' if form.instance.ativo else ' Inativo: não é oferecido para novos atendimentos.'))
+            return redirect(reverse('painel:cliente', args=[cliente.pk]) + '#t-enderecos')
+    voltar = reverse('painel:cliente', args=[cliente.pk])
+    return formulario(request, form, titulo=titulo, secao='clientes', voltar=voltar, rotulo=rotulo, consultas=True,
+                      crumbs=[('Clientes', reverse('painel:clientes')), (cliente.razao_social, voltar)],
+                      descricao='Local onde a Manutec atende o cliente (matriz, filial). Bloco, torre ou apartamento ficam no complemento. '
+                                'Endereço não é apagado: o que deixar de valer fica inativo.')
 
 
 @exige('clientes.change_cliente')
 def cliente_cnpj(request, pk):
     obj = get_object_or_404(Cliente, pk=pk)
+    if obj.pessoa_fisica:
+        messages.error(request, 'Cliente pessoa física não tem CNPJ; o documento é o CPF do cadastro.')
+        return redirect('painel:cliente', obj.pk)
     form = TrocaCNPJForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         try:

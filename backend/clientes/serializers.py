@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from .models import ContatoAdministradora, Responsabilidade
-from .models import Cliente, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora
+from .models import Cliente, Endereco, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora
 from .cnpj import normalizar_cnpj
-from .services import cadastrar_cliente, ENDERECO_OBRIGATORIO
+from .services import cadastrar_cliente, ENDERECO_CAMPOS, ENDERECO_OBRIGATORIO
+from .cpf import normalizar_cpf
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 
@@ -79,25 +80,95 @@ class TrocaCNPJSerializer(serializers.Serializer):
     data_inicio = serializers.DateField()
 
 
-class ClienteSerializer(serializers.ModelSerializer):
-    cnpj = CNPJField(write_only=True, required=True, max_length=18)
-    data_inicio = serializers.DateField(write_only=True, required=False)
+class EnderecoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Endereco
+        fields = ["id", "cliente", "descricao", "principal", "ativo", "cep", "logradouro", "numero", "complemento",
+                  "bairro", "cidade", "estado", "criado_em", "atualizado_em"]
+        read_only_fields = ["id", "criado_em", "atualizado_em"]
 
     def validate(self, attrs):
-        if self.instance:
-            if "cnpj" in attrs or "data_inicio" in attrs:
-                raise serializers.ValidationError({"cnpj": "Use a operação de troca de CNPJ para preservar o histórico."})
-        else:
+        if self.instance and "cliente" in attrs and attrs["cliente"].pk != self.instance.cliente_id:
+            raise serializers.ValidationError({"cliente": "O endereço não pode ser transferido para outro cliente."})
+        if not self.instance:
             errors = {campo: "Este campo é obrigatório." for campo in ENDERECO_OBRIGATORIO if not attrs.get(campo)}
             if errors:
                 raise serializers.ValidationError(errors)
         return attrs
 
+    def _salvar(self, instance, validated_data):
+        for campo, valor in validated_data.items():
+            setattr(instance, campo, valor)
+        try:
+            instance.save()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        return instance
+
+    def create(self, validated_data):
+        return self._salvar(Endereco(), validated_data)
+
+    def update(self, instance, validated_data):
+        return self._salvar(instance, validated_data)
+
+
+class ClienteSerializer(serializers.ModelSerializer):
+    tipo_pessoa = serializers.ChoiceField(choices=Cliente.TIPOS_PESSOA, default=Cliente.PJ)
+    cnpj = CNPJField(write_only=True, required=False, max_length=18)
+    cpf = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=14)
+    data_inicio = serializers.DateField(write_only=True, required=False)
+    enderecos = EnderecoSerializer(many=True, read_only=True)
+
     def get_fields(self):
         fields = super().get_fields()
-        if self.instance:
-            fields["cnpj"].required = False
+        # Endereço informado no cadastro vira o endereço principal; depois, use /api/v1/enderecos/.
+        do_endereco = EnderecoSerializer().get_fields()
+        for campo in ENDERECO_CAMPOS:
+            fields[campo] = do_endereco[campo]
+            fields[campo].write_only, fields[campo].required = True, False
         return fields
+
+    def validate_cpf(self, value):
+        if not value:
+            return None
+        try:
+            value = normalizar_cpf(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc
+        if Cliente.objects.filter(cpf=value).exclude(pk=getattr(self.instance, "pk", None)).exists():
+            raise serializers.ValidationError("Este CPF já pertence a um cliente cadastrado.")
+        return value
+
+    def validate(self, attrs):
+        if self.instance:
+            if "cnpj" in attrs or "data_inicio" in attrs:
+                raise serializers.ValidationError({"cnpj": "Use a operação de troca de CNPJ para preservar o histórico."})
+            if "tipo_pessoa" in self.initial_data and attrs.get("tipo_pessoa") != self.instance.tipo_pessoa:
+                raise serializers.ValidationError({"tipo_pessoa": "O tipo de pessoa não muda depois do cadastro."})
+            attrs.pop("tipo_pessoa", None)
+            if any(campo in attrs for campo in ENDERECO_CAMPOS):
+                raise serializers.ValidationError({"endereco": "Altere endereços em /api/v1/enderecos/."})
+            if "cpf" in attrs and not self.instance.pessoa_fisica:
+                if attrs["cpf"]:
+                    raise serializers.ValidationError({"cpf": "Cliente pessoa jurídica não tem CPF."})
+                attrs.pop("cpf")
+            if self.instance.pessoa_fisica and "cpf" in attrs and not attrs["cpf"]:
+                raise serializers.ValidationError({"cpf": "Informe o CPF da pessoa física."})
+        else:
+            errors = {campo: "Este campo é obrigatório." for campo in ENDERECO_OBRIGATORIO if not attrs.get(campo)}
+            if attrs["tipo_pessoa"] == Cliente.PJ:
+                if not attrs.get("cnpj"):
+                    errors["cnpj"] = "Este campo é obrigatório."
+                if attrs.get("cpf"):
+                    errors["cpf"] = "Pessoa jurídica não tem CPF."
+            else:
+                if not attrs.get("cpf"):
+                    errors["cpf"] = "Este campo é obrigatório."
+                if attrs.get("cnpj"):
+                    errors["cnpj"] = "Pessoa física não tem CNPJ."
+            if errors:
+                raise serializers.ValidationError(errors)
+        return attrs
 
     def create(self, validated_data):
         try:
@@ -105,12 +176,17 @@ class ClienteSerializer(serializers.ModelSerializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.message_dict if hasattr(exc, "message_dict") else {"cnpj": exc.messages}) from exc
 
+    def update(self, instance, validated_data):
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
     class Meta:
         model = Cliente
         fields = [
-            "cnpj", "id", "razao_social", "nome_fantasia", "logradouro", "numero",
-            "complemento", "bairro", "cidade", "estado", "cep", "observacoes",
-            "criado_em", "atualizado_em", "data_inicio",
+            "id", "tipo_pessoa", "cnpj", "cpf", "razao_social", "nome_fantasia", "ativo", "observacoes",
+            "enderecos", "criado_em", "atualizado_em", "data_inicio",
         ]
         read_only_fields = ["id", "criado_em", "atualizado_em"]
 

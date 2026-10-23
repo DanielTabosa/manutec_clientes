@@ -7,8 +7,9 @@ from .services import trocar_cnpj
 from .serializers import ContatoAdministradoraSerializer, ResponsabilidadeSerializer
 from .serializers import HistoricoCNPJSerializer, TrocaCNPJSerializer
 from .models import ContatoAdministradora, Responsabilidade
-from .models import Cliente, Contato
-from .serializers import ClienteSerializer, ContatoSerializer
+from .models import Cliente, Contato, Endereco
+from .permissions import PermissoesEndereco
+from .serializers import ClienteSerializer, ContatoSerializer, EnderecoSerializer
 from .models import Administradora
 from .serializers import AdministradoraSerializer, VinculoAdministradoraSerializer, AlterarAdministradoraSerializer
 from .services import alterar_administradora
@@ -18,10 +19,10 @@ from django.db import IntegrityError, transaction
 class ClienteViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
                      mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
                      viewsets.GenericViewSet):
-    queryset = Cliente.objects.all()
+    queryset = Cliente.objects.prefetch_related("enderecos")
     serializer_class = ClienteSerializer
     filter_backends = [filters.SearchFilter]
-    search_fields = ["razao_social", "nome_fantasia", "cidade"]
+    search_fields = ["razao_social", "nome_fantasia", "cpf", "enderecos__cidade"]
     # Exclusao nao faz parte desta primeira API para preservar historicos.
 
     @action(detail=True, methods=["get", "post"])
@@ -57,6 +58,24 @@ class ClienteViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         except DjangoValidationError as exc:
             raise ValidationError(exc.message_dict) from exc
         return Response(HistoricoCNPJSerializer(registro).data, status=201)
+
+
+class EnderecoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                      mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+                      viewsets.GenericViewSet):
+    """Endereços de atendimento. Sem exclusão: o endereço que deixa de valer fica inativo."""
+    queryset = Endereco.objects.select_related("cliente")
+    serializer_class = EnderecoSerializer
+    permission_classes = [PermissoesEndereco]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        cliente = self.request.query_params.get("cliente")
+        if cliente is not None:
+            if not cliente.isascii() or not cliente.isdigit() or len(cliente) > 18:
+                raise ValidationError({"cliente": "Informe o ID numérico do cliente."})
+            qs = qs.filter(cliente_id=int(cliente))
+        return qs
 
 
 class ContatoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,

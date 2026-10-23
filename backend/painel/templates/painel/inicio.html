@@ -32,7 +32,7 @@
   {% if clientes_recentes %}
   <div class="card-head" style="border-top:1px solid var(--border);border-bottom:0"><h3>Cadastrados recentemente</h3></div>
   <ul class="worklist" style="border-top:1px solid var(--border)">{% for c in clientes_recentes %}<li><a href="{% url 'painel:cliente' c.pk %}">
-    <span class="worklist-main"><strong>{{ c.razao_social }}</strong><span class="row-sub num-data">{{ c.cnpj_atual|cnpj|default:"Sem CNPJ" }} · {{ c.criado_em|date:"d/m/Y" }}</span></span>
+    <span class="worklist-main"><strong>{{ c.razao_social }}</strong><span class="row-sub num-data">{{ c.documento|documento|default:"Sem documento" }} · {{ c.criado_em|date:"d/m/Y" }}</span></span>
     <span class="chip {% if c.pontos == 5 %}chip-ok{% else %}chip-warn{% endif %}">Cadastro {{ c.pontos }}/5</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
   {% else %}<div class="empty" style="border-top:1px solid var(--border)"><strong>Nenhum cliente ainda</strong>Cadastre um a um ou importe uma lista em CSV.</div>{% endif %}
 </section>

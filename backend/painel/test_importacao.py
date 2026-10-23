@@ -43,7 +43,7 @@ class ImportacaoTests(BasePreparacao):
                  'Sem CNPJ;;;;;;;;\n')
         self.assertRedirects(self.enviar('clientes', texto), reverse('painel:importar_previa'))
         previa = self.client.get(reverse('painel:importar_previa')).content.decode()
-        for trecho in ('Condomínio Novo', 'endereço pendente', 'será cadastrada', 'Já existe', 'Razão social vazia', 'CNPJ vazio'):
+        for trecho in ('Condomínio Novo', 'endereço pendente', 'será cadastrada', 'Já existe', 'Razão social vazia', 'CNPJ ou CPF vazio'):
             self.assertIn(trecho, previa)
         self.assertEqual(Cliente.objects.count(), 1)  # nada gravado na prévia
         resposta = self.client.post(reverse('painel:importar_previa'), {'acao': 'confirmar', **self._mapa_atual()})
@@ -53,7 +53,7 @@ class ImportacaoTests(BasePreparacao):
         self.assertEqual(novo.historico_cnpj.get().cnpj, '22333444000155')
         self.assertEqual(novo.historico_administradoras.get().administradora, self.a)
         incompleto = Cliente.objects.get(razao_social='Edifício Incompleto')
-        self.assertIsNone(incompleto.logradouro)
+        self.assertFalse(incompleto.enderecos.filter(logradouro__isnull=False).exists())
         self.assertEqual(incompleto.historico_administradoras.get().administradora.razao_social, 'Adm Nova')
         anotado = completude.anotar(Cliente.objects.filter(pk=incompleto.pk)).get()
         self.assertEqual((anotado.ok_cnpj, anotado.ok_endereco, anotado.ok_administradora), (True, False, True))
@@ -91,7 +91,7 @@ class ImportacaoTests(BasePreparacao):
 
     def test_permissoes_modelo_e_descartar(self):
         resposta = self.client.get(reverse('painel:importar_modelo', args=['clientes']))
-        self.assertIn('Razão social;CNPJ', resposta.content.decode('utf-8-sig'))
+        self.assertIn('Razão social ou nome;CNPJ ou CPF;Tipo (PJ ou PF)', resposta.content.decode('utf-8-sig'))
         self.enviar('clientes', 'Razão social;CNPJ\nX;22.333.444/0001-55\n')
         self.client.post(reverse('painel:importar_previa'), {'acao': 'descartar'})
         self.assertNotIn('importacao', self.client.session)
@@ -112,7 +112,7 @@ class InicioPainelTests(BasePreparacao):
 
     def test_painel_foca_em_clientes_administradoras_e_contratos(self):
         pagina = self.client.get(reverse('painel:inicio')).content.decode()
-        for trecho in ('Clientes cadastrados', 'Sem CNPJ atual', 'Administradoras', 'Contratos ativos', 'Envio de documentos'):
+        for trecho in ('Clientes cadastrados', 'Sem CNPJ/CPF atual', 'Administradoras', 'Contratos ativos', 'Envio de documentos'):
             self.assertIn(trecho, pagina)
         # "Ver todos" no topo de cada quadro
         for destino in ('painel:clientes', 'painel:administradoras', 'painel:contratos', 'painel:preparacoes'):

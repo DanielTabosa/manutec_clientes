@@ -1,38 +1,32 @@
-# Retomada — próxima fase: implantação em produção
+# Retomada — integração Jiraya, pessoa física e endereços (23/10/2026)
 
-## Plano aprovado em 14/10/2026 (meta: MVP em produção em 27/11/2026)
+## Onde paramos
 
-1. ✅ Preparação no painel, com histórico, retrato e prevenção de reenvio.
-2. ✅ Envio por SMTP: `financeiro@manutecvalvulas.com.br` (465 SSL), teste chegou na caixa de entrada. DMARC ausente: recomendação futura.
-3. ✅ Conta Azul no fluxo: boleto com escolha da parcela e NFS-e do ZIP; consulta de CNPJ com fontes reserva.
-3b. ✅ Interface própria (`backend/painel`), redesenho com a identidade do site (direção D), início focado na base, importação CSV e retaguarda com o mesmo design.
-3c. ✅ 14/10: banco instalado zerado (usuários mantidos) e contratos cadastrados no sistema (tipos editáveis, situação ativo/suspenso/inativo, vários por cliente), com "Ver todos" no topo dos quadros do início. Detalhes em `PROJECT_STATE.md`.
-3d. ✅ 15/10: demonstração local aos gestores; tela de login reescrita com foco no cadastro de clientes (boletos e notas como extra). Ao encerrar, o usuário avisou que em breve trata de integração e produção.
-4. ▶ **Próxima fase (combinada com o usuário ao encerrar em 14/10): colocar em produção.** Começar por aqui na próxima sessão. Pendente decisão dele: hospedagem (VPS recomendado; cPanel só com Python App + PostgreSQL; ou PC do escritório) e acesso (internet ou só escritório). Renovação de token do Conta Azul segue manual.
-   - Sugerido antes: envio real de uma preparação completa para um contato com o e-mail do próprio usuário.
-5. Homologação com a base definitiva: o usuário vai cadastrar ou importar os dados reais (administradoras → clientes → contatos → contratos).
-   - Tipos de contrato cadastrados no banco instalado em 14/10, a pedido do usuário: Monitoramento Superior, Monitoramento Inferior, Manutenção de VRP e Manutenção de Bombas. Cliente com vários serviços tem um contrato por tipo; não há tipos combinados (cresceria a cada serviço novo). Novos tipos pela tela Contratos › Tipos de contrato. Se um único contrato assinado cobrir vários serviços, o usuário avisa: aí seria um contrato com vários serviços (muda o modelo).
+Implementado e validado: contrato de leitura para o Jiraya ([docs/INTEGRACAO_JIRAYA.md](docs/INTEGRACAO_JIRAYA.md), aprovado pelo usuário em 23/10), token de serviço e modelo novo (pessoa física com CPF, situação ativo/inativo, vários endereços de atendimento). Detalhes em `PROJECT_STATE.md` (seção de 23/10) e regras em `docs/REGRAS_NEGOCIO.md`.
+
+**Pendente, bloqueante:** aplicar a migration 0010 ao banco instalado. Só com OK explícito do usuário. Até lá, o código do `main` não funciona contra o banco instalado (falta `tipo_pessoa`, `cpf`, `ativo` e `clientes_endereco`); não suba o servidor do usuário com esse código antes de aplicar.
+
+- Backup feito em 23/10: `.venv/backups/pre_0010_20261023/pre_0010.dump` (116.153 bytes; SHA-256 em `verification.json`), restaurado em banco temporário com contagem e md5 do conteúdo idênticos nas 27 tabelas (1.025 registros); temporário removido. Banco instalado em 0009: 360 clientes, todos com algum campo de endereço (viram 360 endereços "Principal").
+- Para aplicar: `.venv\Scripts\python.exe backend/manage.py migrate` (a 0010 confere a cópia antes de remover as colunas). Depois, conferir: 360 linhas em `clientes_endereco`, todas principal/ativo; nenhuma coluna de endereço em `clientes`; todos `tipo_pessoa='PJ'` e `ativo`; `makemigrations --check` limpo; contagens das demais tabelas iguais ao `verification.json` (exceto `django_migrations` +1 e `django_content_type` +1).
+- Se precisar voltar: `migrate clientes 0009` devolve o endereço principal às colunas (recusa se já houver pessoa física) ou restaurar o dump.
+
+## Para o Jiraya configurar
+
+- URL: `<endereço do manutec-clientes>/api/integracao/v1/` (local: `http://127.0.0.1:8000/api/integracao/v1/`). Produção ainda não definida (fase de implantação pendente).
+- Token: gerar e colocar em `backend/.env` como `DJANGO_INTEGRACAO_JIRAYA_TOKEN` (mínimo 32 caracteres); o mesmo valor vai na configuração do Jiraya, enviado como `Authorization: Bearer <token>`. Nunca no Git nem no chat.
 
 ## Estado técnico
 
-- Banco instalado com dados reais inseridos pelo usuário (contagem em 15/10: 358 clientes, 24 administradoras, 1 contato, 1 contrato; preparação nº 3 criada na reunião). Fazer backup antes de qualquer migração ou implantação. Backup de antes do reset: `.venv/backups/pre_reset_20261014/` (verificado).
-- Migration 0009 aplicada ao banco instalado. Mudanças de modelo exigem 0010+.
-- Contratos: modelos em `clientes/contratos_models.py`, telas em `painel/contratos.py`. A conferência com o Conta Azul reaproveita `clientes/contratos.py`.
-- `.env` local: SMTP configurado e `DJANGO_CONTAAZUL_AMBIENTE=producao` (somente GET). `config/test_settings.py` isola os testes dessas integrações.
-- Validação: 150 testes Django, 15 verificações PostgreSQL descartáveis, scripts Playwright `backend/verificar_*.cjs` (o mais recente: `verificar_contratos.cjs`).
-- Servidor local do usuário: aba de terminal "Servidor Manutec" com `manage.py runserver` em `http://127.0.0.1:8000/`.
+- Migrations: 0010 nova (não aplicada no instalado). Mudanças de modelo seguintes exigem 0011+.
+- Validação: 161 testes Django/SQLite, 56 Conta Azul, 18 verificações PostgreSQL descartáveis (`backend/verificar_postgresql.py`, inclui 0010 na ida/volta). Telas conferidas no navegador em banco descartável.
+- Servidor local do usuário: aba "Servidor Manutec" com `manage.py runserver` em `http://127.0.0.1:8000/` (estava parado nesta sessão).
 
-## Ferramentas
+## Depois disso
 
-- Node/Playwright: `C:/Users/didit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe`, com NODE_PATH em `.../dependencies/node/node_modules`; usar o Edge.
-- Verificação visual: `verificar_postgresql.py --keep` e `runserver --noreload` com `POSTGRES_DB=<descartável>`. Reiniciar o servidor depois de editar código. Remover o banco ao final.
-- Login do usuário no painel: `Daniel_Tabosa` (superusuário); senha definida por ele com `manage.py changepassword`.
+Fase anterior continua: implantação em produção (hospedagem e acesso pendentes de decisão do usuário) e homologação com a base definitiva. Pendência menor: completude conta "Administradora definida" também para residências.
 
 ## Decisões preservadas
 
-- Foco do sistema (usuário, 14/10): base de dados de clientes robusta; o envio é complemento.
-- Contratos (usuário, 14/10): cadastrados aqui, vários por cliente (um por tipo de serviço); Conta Azul só como conferência opcional, sem gravar.
-- Importação CSV: cliente exige razão social e CNPJ; o resto é opcional e vira pendência. Nada existente é sobrescrito.
-- Voltar atrás: voltar para rascunho se nenhum e-mail saiu; cancelar até a operação terminar.
-- Não enviar e-mails reais a clientes em testes. Nunca pedir ou ler senhas no chat. Não ler credenciais em `.venv/contaazul`. Sem renovação automática de token. Preservar os backups `pre_0007`, `pre_0008` e `pre_reset_20261014`.
+- Foco: base de clientes robusta; manutec-clientes é a fonte única de clientes (D-66 do Jiraya). Não mexer em `C:/dev/Jiraya`.
+- Não enviar e-mails reais a clientes em testes. Nunca pedir ou ler senhas no chat. Não ler credenciais em `.venv/contaazul`. Preservar os backups `pre_0007`, `pre_0008`, `pre_reset_20261014` e `pre_0010_20261023`.
 - Git: main/origin com `git -c safe.directory=C:/dev/manutec-clientes`. Commit/push rotineiros autorizados.

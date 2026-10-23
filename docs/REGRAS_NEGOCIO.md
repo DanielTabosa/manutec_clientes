@@ -10,6 +10,21 @@ Estas regras registram decisões vigentes. Contatos de administradoras e respons
 - Cadastro exige razão social, logradouro, número (aceita S/N), bairro, cidade, UF válida e CEP de oito números. Nome fantasia e complemento são opcionais. A exigência de manter o endereço preenchido após a criação não está consolidada.
 - Campos editáveis de CNPJ/CEP nos formulários devem oferecer consulta pública. O operador confere e pode completar/corrigir os dados; falha de consulta permite preenchimento manual. Consultar não salva automaticamente nem comprova situação cadastral.
 
+## Pessoa física, situação e endereços de atendimento
+
+Decisões do usuário em 23/10/2026 (requisitos aprovados da Manutec; integração com o Jiraya em [INTEGRACAO_JIRAYA.md](INTEGRACAO_JIRAYA.md)). Implementadas pela migration 0010.
+
+- Cliente pode ser pessoa jurídica (CNPJ, com o histórico acima) ou pessoa física (residência, CPF). O tipo é escolhido no cadastro e não muda depois; se mudar na prática, cadastra-se outro cliente.
+- CPF não tem histórico: fica fixo no cadastro, é único entre clientes, tem os dígitos verificadores conferidos e só é corrigido em caso de erro de digitação. Pessoa física não tem CNPJ nem nome fantasia.
+- Situação ativo/inativo: campo novo, marcado à mão no cadastro; todo cliente começa ativo (os existentes também). Não é calculado pelos contratos. Inativo some das sugestões do Jiraya, mas o cadastro e o histórico continuam.
+- Um cliente tem vários endereços de atendimento (matriz, filiais). Bloco, torre ou apartamento não são endereço: vão no complemento.
+- Todo cliente com endereço tem exatamente um principal. O endereço único anterior virou o principal, com a descrição "Principal". O primeiro endereço ativo cadastrado vira principal automaticamente; marcar outro como principal desmarca o anterior.
+- Endereço nunca é apagado (o Jiraya guarda o id dele): o que deixa de valer fica inativo. O principal não pode ficar inativo nem deixar de ser principal sem que outro seja escolhido antes.
+- O cadastro manual continua exigindo o endereço completo (o principal); a importação CSV continua aceitando cliente sem endereço, como pendência.
+- O endereço não tem CNPJ próprio nesta etapa: é só o local de atendimento. Filial faturada à parte é cadastrada como outro cliente.
+- Contatos e destinatários de documentos continuam ligados ao cliente, sem vínculo com endereço.
+- Importação CSV, busca do painel, cruzamento de contratos com o Conta Azul e importação de NFS-e na preparação usam o documento atual, CPF ou CNPJ. A consulta pública de CNPJ continua só para pessoa jurídica.
+
 ## Contatos e históricos
 
 - Contato direto pertence a um cliente; nome e início são obrigatórios; função, telefone e e-mail são opcionais. Vários contatos atuais são permitidos, sem exclusividade presumida por função.

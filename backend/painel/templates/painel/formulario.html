@@ -14,7 +14,7 @@
     <div class="form-grid">
       {% for field in form.visible_fields %}
       <div class="field{% if field.errors %} field-erro{% endif %}{% if field.name in 'observacoes razao_social logradouro acao administradora' %} field-largo{% endif %}" data-campo="{{ field.name }}">
-        <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="opcional">(opcional)</span>{% endif %}</label>
+        <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required and not field.field.obrigatorio_conforme_tipo %} <span class="opcional">(opcional)</span>{% endif %}</label>
         {{ field }}
         {% if field.name == 'cnpj' and consultas %}<button type="button" class="btn btn-sm" id="consultar-cnpj">Consultar CNPJ</button><p class="hint" id="consulta-status" role="status" aria-live="polite"></p>{% endif %}
         {% for e in field.errors %}<p class="field-msg" role="alert">{{ e }}</p>{% endfor %}
@@ -27,6 +27,7 @@
 </section>
 {% if consultas %}
 <script src="{% static 'clientes/cadastro.js' %}" defer></script>
+<script src="{% static 'clientes/tipo_pessoa.js' %}" defer></script>
 <script id="consulta-cep-script" src="{% static 'clientes/cep.js' %}" data-url="{% url 'painel:consulta_cep' %}" defer></script>
 {% endif %}
 {% endblock %}

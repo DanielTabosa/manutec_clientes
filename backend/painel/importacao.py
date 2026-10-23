@@ -13,7 +13,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
 
-from clientes.cnpj import normalizar_cnpj
+from clientes.cnpj import cnpj_dv_valido, normalizar_cnpj
+from clientes.cpf import cpf_valido, normalizar_cpf
 from clientes.contratos_models import SITUACOES, Contrato, TipoContrato
 from clientes.models import (Administradora, Cliente, ClienteAdministradora, Contato, ContatoAdministradora,
                              HistoricoCNPJ)
@@ -30,9 +31,10 @@ def _chave(texto):
 
 # campo, rótulo, obrigatório, sinônimos de cabeçalho (comparados sem acento/caixa/pontuação)
 TIPOS = {
-    'clientes': dict(nome='Clientes (condomínios)', permissao='clientes.add_cliente', campos=[
-        ('razao_social', 'Razão social', True, ['razao social', 'razao', 'condominio', 'nome do condominio', 'cliente', 'nome', 'nome cliente']),
-        ('cnpj', 'CNPJ', True, ['cnpj', 'cnpj cpf', 'cpf cnpj', 'documento', 'cnpj do condominio']),
+    'clientes': dict(nome='Clientes (condomínios, empresas e residências)', permissao='clientes.add_cliente', campos=[
+        ('razao_social', 'Razão social ou nome', True, ['razao social', 'razao', 'condominio', 'nome do condominio', 'cliente', 'nome', 'nome cliente', 'nome completo']),
+        ('cnpj', 'CNPJ ou CPF', True, ['cnpj', 'cnpj cpf', 'cpf cnpj', 'documento', 'cnpj do condominio', 'cpf']),
+        ('tipo_pessoa', 'Tipo (PJ ou PF)', False, ['tipo', 'tipo pessoa', 'tipo de pessoa', 'pessoa', 'pf pj', 'pj pf']),
         ('nome_fantasia', 'Nome fantasia', False, ['nome fantasia', 'fantasia', 'apelido']),
         ('cep', 'CEP', False, ['cep', 'codigo postal']),
         ('logradouro', 'Logradouro', False, ['logradouro', 'endereco', 'rua', 'avenida', 'end']),
@@ -165,6 +167,33 @@ def _cnpj(texto, notas):
     return normalizar_cnpj(bruto)
 
 
+TIPOS_PESSOA = {'pj': 'PJ', 'juridica': 'PJ', 'pessoa juridica': 'PJ', 'cnpj': 'PJ', 'empresa': 'PJ', 'condominio': 'PJ',
+                'pf': 'PF', 'fisica': 'PF', 'pessoa fisica': 'PF', 'cpf': 'PF', 'residencia': 'PF'}
+
+
+def _documento(texto, tipo, notas):
+    """Devolve (tipo_pessoa, cnpj, cpf). Sem a coluna Tipo, deduz pelo tamanho e pelos dígitos verificadores."""
+    bruto = re.sub(r'[.\s/-]', '', texto or '').upper()
+    if tipo:
+        tipo = TIPOS_PESSOA.get(_chave(tipo))
+        if not tipo:
+            raise ValidationError('Tipo inválido: use PJ (CNPJ) ou PF (CPF).')
+    elif bruto.isdigit() and len(bruto) <= 11:
+        como_cpf = cpf_valido(bruto.zfill(11))
+        como_cnpj = len(bruto) == 11 and cnpj_dv_valido(bruto.zfill(14))
+        if como_cpf and como_cnpj:
+            raise ValidationError('Documento ambíguo (vale como CPF e como CNPJ sem zeros). Informe a coluna Tipo (PJ ou PF).')
+        tipo = 'PF' if como_cpf or len(bruto) < 11 else 'PJ'
+    else:
+        tipo = 'PJ'
+    if tipo == 'PJ':
+        return 'PJ', _cnpj(bruto, notas), None
+    if bruto.isdigit() and 8 < len(bruto) < 11:
+        bruto = bruto.zfill(11)
+        notas.append('CPF completado com zeros à esquerda')
+    return 'PF', None, normalizar_cpf(bruto)
+
+
 def _email(texto, notas):
     if not texto:
         return None
@@ -178,6 +207,10 @@ def _email(texto, notas):
 
 def _localizar_cliente(texto):
     digitos = re.sub(r'[.\s/-]', '', texto).upper()
+    if len(digitos) == 11 and digitos.isdigit():
+        c = Cliente.objects.filter(cpf=digitos).first()
+        if c:
+            return c
     if re.fullmatch(r'[A-Z0-9]{12}[0-9]{2}', digitos) or (digitos.isdigit() and 11 < len(digitos) < 14):
         h = HistoricoCNPJ.objects.filter(cnpj=digitos.zfill(14), data_fim__isnull=True).first()
         return h.cliente if h else None
@@ -223,8 +256,8 @@ class _Analise:
         if not dados['razao_social']:
             raise ValidationError('Razão social vazia.')
         if not v('cnpj'):
-            raise ValidationError('CNPJ vazio (obrigatório para todo cliente).')
-        dados['cnpj'] = _cnpj(v('cnpj'), notas)
+            raise ValidationError('CNPJ ou CPF vazio (obrigatório para todo cliente).')
+        dados['tipo_pessoa'], dados['cnpj'], dados['cpf'] = _documento(v('cnpj'), v('tipo_pessoa'), notas)
         for campo, limite in (('nome_fantasia', 150), ('logradouro', 150), ('numero', 20), ('complemento', 100),
                               ('bairro', 100), ('cidade', 100), ('observacoes', 5000)):
             dados[campo] = v(campo)[:limite] or None
@@ -249,6 +282,8 @@ class _Analise:
                                  ('cidade', 'cidade'), ('estado', 'UF'), ('cep', 'CEP')) if not dados[c]]
         if faltam:
             notas.append('endereço pendente: ' + ', '.join(faltam))
+        if dados['cpf']:
+            return ('existente' if Cliente.objects.filter(cpf=dados['cpf']).exists() else 'novo'), dados['cpf']
         if HistoricoCNPJ.objects.filter(cnpj=dados['cnpj']).exists():
             return 'existente', dados['cnpj']
         return 'novo', dados['cnpj']
@@ -258,7 +293,7 @@ class _Analise:
         v = lambda c: _valor(linha, mapa, c)  # noqa: E731
         cliente = _localizar_cliente(v('cliente'))
         if not cliente:
-            raise ValidationError(f'Condomínio não encontrado: "{v("cliente")}". Use o CNPJ atual ou o nome exato.')
+            raise ValidationError(f'Condomínio não encontrado: "{v("cliente")}". Use o CNPJ atual, o CPF ou o nome exato.')
         dados.update(cliente=cliente.pk, cliente_nome=cliente.razao_social, nome=v('nome')[:150])
         if not dados['nome']:
             raise ValidationError('Nome do contato vazio.')
@@ -306,7 +341,7 @@ class _Analise:
         v = lambda c: _valor(linha, mapa, c)  # noqa: E731
         cliente = _localizar_cliente(v('cliente'))
         if not cliente:
-            raise ValidationError(f'Condomínio não encontrado: "{v("cliente")}". Use o CNPJ atual ou o nome exato.')
+            raise ValidationError(f'Condomínio não encontrado: "{v("cliente")}". Use o CNPJ atual, o CPF ou o nome exato.')
         tipo = TipoContrato.objects.filter(nome__iexact=' '.join(v('tipo').split())).first()
         if not tipo:
             raise ValidationError(f'Tipo de contrato não cadastrado: "{v("tipo")}". Cadastre-o em Contratos › Tipos de contrato.')

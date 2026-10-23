@@ -32,7 +32,7 @@
 
   <section class="card" aria-labelledby="t-cond">
     <div class="card-head"><h2 id="t-cond">Condomínios administrados</h2><span class="count">{{ vinculos|length }}</span></div>
-    {% if vinculos %}<ul class="worklist">{% for v in vinculos %}<li><a href="{% url 'painel:cliente' v.cliente_id %}"><span class="worklist-main"><strong>{{ v.cliente.razao_social }}</strong><span class="row-sub num-data">{{ v.cnpj_atual|cnpj|default:"Sem CNPJ" }} · desde {{ v.data_inicio|date:"d/m/Y" }}</span></span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
+    {% if vinculos %}<ul class="worklist">{% for v in vinculos %}<li><a href="{% url 'painel:cliente' v.cliente_id %}"><span class="worklist-main"><strong>{{ v.cliente.razao_social }}</strong><span class="row-sub num-data">{% if v.cliente.cpf %}{{ v.cliente.cpf|documento }}{% else %}{{ v.cnpj_atual|cnpj|default:"Sem CNPJ" }}{% endif %} · desde {{ v.data_inicio|date:"d/m/Y" }}</span></span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{% endfor %}</ul>
     {% else %}<div class="empty">Nenhum condomínio vinculado.</div>{% endif %}
   </section>
 </div>

@@ -10,7 +10,8 @@ Aplicação Django com PostgreSQL e API DRF. Hoje o domínio está no app `backe
 
 | Entidade | Relação e estado |
 | --- | --- |
-| Cliente | Principal; ID interno permanente, cadastro e endereço; implementado |
+| Cliente | Principal; ID interno permanente, tipo PJ/PF, CPF (PF), situação ativo/inativo; implementado |
+| Endereco | N endereços de atendimento por cliente (`clientes_endereco`, gerenciada), um principal, inativação sem exclusão; migration 0010 |
 | HistoricoCNPJ | N registros para um cliente; um atual; implementado |
 | Contato | N contatos diretos por cliente; reúne pessoa e vínculo temporal; implementado |
 | Administradora | Empresa independente, atende vários clientes; implementada |
@@ -34,9 +35,15 @@ Responsabilidades usam validação de modelo e bloqueio do cliente ao salvar; o 
 
 ## Acesso e evolução
 
-API autenticada por sessão; permissões view/add/change por modelo e verificações específicas nos vínculos; admin exige acesso de equipe. Configuração destinada a desenvolvimento local; autenticação de integrações e produção dependem de etapas próprias.
+API autenticada por sessão; permissões view/add/change por modelo e verificações específicas nos vínculos; admin exige acesso de equipe. Endereços seguem as permissões do cliente (ver com `view_cliente`, cadastrar/editar com `change_cliente`).
+
+Integração com o Jiraya (`clientes/integracao.py`, contrato em [INTEGRACAO_JIRAYA.md](INTEGRACAO_JIRAYA.md)): rotas próprias em `/api/integracao/v1/`, só GET, com autenticação própria por token de serviço (`DJANGO_INTEGRACAO_JIRAYA_TOKEN`, mínimo 32 caracteres, comparação em tempo constante). O token não é aceito pelo painel, admin ou `/api/v1/`, que usam sessão; a sessão também não abre as rotas de integração. `atualizado_em` do cliente é renovado por endereço e contato (`Cliente.registrar_alteracao`), além da troca de CNPJ e da administradora. Configuração destinada a desenvolvimento local; autenticação de integrações e produção dependem de etapas próprias.
 
 Manter Django organizado em módulos à medida que necessário. Integrações aprovadas como direção: Conta Azul, Auvo, e-mail e WhatsApp oficial, n8n depois. Associar IDs externos ao ID permanente, separar adaptadores por fornecedor e compartilhar regras com API/interface; processamento em segundo plano, idempotência e tratamento de falhas serão definidos nessa etapa. Não construir essa infraestrutura antecipadamente. O sistema ainda não obtém nem envia boleto/nota. Origem dos documentos, autoridade de dados por campo, autenticação, filas e provedor de e-mail permanecem por definir.
+
+## Pessoa física e endereços (migration 0010)
+
+A 0010 acrescenta a `clientes` as colunas `tipo_pessoa` (PJ/PF), `cpf` (único) e `ativo`, com CHECK de coerência tipo/CPF; cria `clientes_endereco` (um principal por cliente por índice único parcial; principal sempre ativo por CHECK); copia o endereço único de cada cliente que tinha algum campo preenchido para o endereço "Principal", conferindo a contagem e a igualdade campo a campo antes de remover as colunas antigas; e substitui a função do trigger de CNPJ: PJ exige CNPJ atual, PF não pode ter CNPJ e o tipo de pessoa não muda (trigger `cliente_tipo_pessoa_imutavel`). A reversão devolve o endereço principal às colunas e recusa se houver pessoa física. `database/schema.sql` continua descrevendo a instalação original; instalação nova aplica o schema e depois as migrations.
 
 ## Destinatários implementados e implantados
 

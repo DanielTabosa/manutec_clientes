@@ -68,7 +68,7 @@ class BasePreparacao(TransactionTestCase):
             for table in ('clientes_itempreparacao', 'clientes_destinatariopreparacao', 'clientes_documentopreparacao', 'clientes_preparacaoenvio',
                           'clientes_itemdestinatario', 'clientes_revisaodestinatarios', 'clientes_configuracaodestinatarios', 'responsabilidades',
                           'clientes_contrato', 'clientes_tipocontrato', 'contatos_administradora', 'cliente_administradora', 'administradoras',
-                          'contatos', 'historico_cnpj', 'clientes'):
+                          'contatos', 'historico_cnpj', 'clientes_endereco', 'clientes'):
                 cursor.execute('DELETE FROM ' + connection.ops.quote_name(table))
 
     def nova(self, *docs):
@@ -305,7 +305,7 @@ class ContaAzulPreparacaoTests(BasePreparacao):
             self.assertEqual((doc.categoria, doc.origem, doc.nome_original), ('nota_fiscal', 'zip_nfse', 'nota-101.pdf'))
             r = p.importar_nfse_zip(prep.pk, zip_nfse((101, self.CNPJ)), date(2026, 10, 1), self.user)
             self.assertIn('já está anexado', r['pendentes'][0][1])
-            with self.assertRaisesMessage(ValidationError, 'tomador o CNPJ atual'):
+            with self.assertRaisesMessage(ValidationError, 'tomador o CNPJ/CPF atual'):
                 p.importar_nfse_zip(prep.pk, zip_nfse((103, '22222222000102')), date(2026, 10, 1), self.user)
         with override_settings(CONTAAZUL_AMBIENTE='producao'), patch('contaazul_nfse.consultar', side_effect=ValueError()):
             with self.assertRaisesMessage(ValidationError, 'Nada foi anexado'):

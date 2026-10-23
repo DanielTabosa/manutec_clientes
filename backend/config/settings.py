@@ -79,6 +79,8 @@ DEFAULT_FROM_EMAIL = os.getenv("DJANGO_EMAIL_FROM", "")
 EMAIL_REPLY_TO = os.getenv("DJANGO_EMAIL_REPLY_TO", "")
 # Busca de boleto/NFS-e no painel: "producao" ou "desenvolvimento"; vazio desabilita. Somente consultas GET.
 CONTAAZUL_AMBIENTE = os.getenv("DJANGO_CONTAAZUL_AMBIENTE", "")
+# Token de serviço do Jiraya (só leitura em /api/integracao/v1/). Vazio ou com menos de 32 caracteres = desligado.
+INTEGRACAO_JIRAYA_TOKEN = os.getenv("DJANGO_INTEGRACAO_JIRAYA_TOKEN", "")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],

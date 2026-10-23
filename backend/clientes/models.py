@@ -3,21 +3,23 @@ from django.db import models
 from django.core.exceptions import ValidationError
 
 
+UFS = [(uf, uf) for uf in "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split()]
+CEP_VALIDATOR = RegexValidator(r"\A[0-9]{8}\Z", "Informe o CEP com exatamente 8 numeros.")
+
+
 class Cliente(models.Model):
+    PJ, PF = "PJ", "PF"
+    TIPOS_PESSOA = [(PJ, "Pessoa jurídica (CNPJ)"), (PF, "Pessoa física (CPF)")]
+
     id = models.BigAutoField(primary_key=True)
+    tipo_pessoa = models.CharField("tipo de pessoa", max_length=2, choices=TIPOS_PESSOA, default=PJ)
+    # PJ: documento no histórico de CNPJ. PF: CPF fixo aqui, sem histórico (decisão de 23/10/2026).
+    cpf = models.CharField("CPF", max_length=11, unique=True, blank=True, null=True, validators=[
+        RegexValidator(r"\A[0-9]{11}\Z", "Informe o CPF com 11 números.")
+    ])
     razao_social = models.CharField(max_length=150)
     nome_fantasia = models.CharField(max_length=150, blank=True, null=True)
-    logradouro = models.CharField(max_length=150, blank=True, null=True)
-    numero = models.CharField(max_length=20, blank=True, null=True)
-    complemento = models.CharField(max_length=100, blank=True, null=True)
-    bairro = models.CharField(max_length=100, blank=True, null=True)
-    cidade = models.CharField(max_length=100, blank=True, null=True)
-    estado = models.CharField(max_length=2, blank=True, null=True, choices=[
-        (uf, uf) for uf in "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split()
-    ])
-    cep = models.CharField(max_length=8, blank=True, null=True, validators=[
-        RegexValidator(r"\A[0-9]{8}\Z", "Informe o CEP com exatamente 8 numeros.")
-    ])
+    ativo = models.BooleanField("ativo", default=True)
     observacoes = models.TextField(blank=True, null=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
@@ -30,8 +32,106 @@ class Cliente(models.Model):
         verbose_name = "cliente"
         verbose_name_plural = "clientes"
 
+    def clean(self):
+        super().clean()
+        if self.tipo_pessoa == self.PF:
+            if self.cpf:
+                from .cpf import normalizar_cpf
+                try:
+                    self.cpf = normalizar_cpf(self.cpf)
+                except ValidationError as exc:
+                    raise ValidationError({"cpf": exc.messages}) from exc
+            else:
+                raise ValidationError({"cpf": "Informe o CPF da pessoa física."})
+        else:
+            self.cpf = None
+
+    @property
+    def pessoa_fisica(self):
+        return self.tipo_pessoa == self.PF
+
+    def documento_atual(self):
+        """CPF da pessoa física ou CNPJ atual da pessoa jurídica (None se faltar)."""
+        if self.pessoa_fisica:
+            return self.cpf
+        return self.historico_cnpj.filter(data_fim__isnull=True).values_list("cnpj", flat=True).first()
+
+    @classmethod
+    def registrar_alteracao(cls, pk):
+        """Renova atualizado_em quando muda algo do cadastro guardado em outra tabela (endereço, contato)."""
+        from django.utils import timezone
+        cls.objects.filter(pk=pk).update(atualizado_em=timezone.now())
+
     def __str__(self):
         return self.razao_social
+
+
+class Endereco(models.Model):
+    """Endereço de atendimento. Bloco, torre ou apartamento não são endereço: vão no complemento."""
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="enderecos")
+    descricao = models.CharField("descrição", max_length=60, default="Principal",
+                                 help_text="Ex.: Principal, Matriz, Filial Aldeota.")
+    principal = models.BooleanField("principal", default=False)
+    ativo = models.BooleanField("ativo", default=True,
+                                help_text="Endereço que deixou de ser atendido fica inativo; nunca é apagado.")
+    cep = models.CharField("CEP", max_length=8, blank=True, null=True, validators=[CEP_VALIDATOR])
+    logradouro = models.CharField("logradouro", max_length=150, blank=True, null=True)
+    numero = models.CharField("número", max_length=20, blank=True, null=True)
+    complemento = models.CharField("complemento", max_length=100, blank=True, null=True)
+    bairro = models.CharField("bairro", max_length=100, blank=True, null=True)
+    cidade = models.CharField("cidade", max_length=100, blank=True, null=True)
+    estado = models.CharField("estado (UF)", max_length=2, blank=True, null=True, choices=UFS)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-principal", "-ativo", "descricao", "id"]
+        verbose_name = "endereço de atendimento"
+        verbose_name_plural = "endereços de atendimento"
+        # Acesso segue as permissões do cliente (view/change_cliente).
+        default_permissions = ()
+        constraints = [
+            models.UniqueConstraint(fields=["cliente"], condition=models.Q(principal=True), name="uq_endereco_principal"),
+            models.CheckConstraint(condition=models.Q(principal=False) | models.Q(ativo=True), name="chk_endereco_principal_ativo"),
+        ]
+
+    @property
+    def completo(self):
+        from .services import ENDERECO_OBRIGATORIO
+        return all(str(getattr(self, campo) or "").strip() for campo in ENDERECO_OBRIGATORIO)
+
+    def clean(self):
+        super().clean()
+        self.descricao = (self.descricao or "").strip()
+        if not self.descricao:
+            raise ValidationError({"descricao": "Informe a descrição do endereço."})
+        if self.principal and not self.ativo:
+            raise ValidationError({"ativo": "O endereço principal não pode ficar inativo. Escolha outro como principal antes."})
+        anterior = type(self).objects.filter(pk=self.pk).first() if self.pk else None
+        if anterior:
+            if anterior.cliente_id != self.cliente_id:
+                raise ValidationError({"cliente": "Não transfira o endereço. Cadastre outro no cliente certo."})
+            if anterior.principal and not self.principal:
+                raise ValidationError({"principal": "Para trocar o principal, marque outro endereço como principal."})
+
+    def save(self, *args, **kwargs):
+        """Garante um único principal: o primeiro endereço ativo vira principal; marcar outro desmarca o anterior."""
+        from django.db import transaction
+        with transaction.atomic():
+            Cliente.objects.select_for_update().get(pk=self.cliente_id)
+            self.full_clean(validate_constraints=False)  # o principal anterior é desmarcado logo abaixo
+            outros = type(self).objects.filter(cliente_id=self.cliente_id).exclude(pk=self.pk)
+            if self.ativo and not outros.filter(principal=True).exists():
+                self.principal = True
+            if self.principal:
+                outros.filter(principal=True).update(principal=False)
+            resultado = super().save(*args, **kwargs)
+            Cliente.registrar_alteracao(self.cliente_id)
+            return resultado
+
+    def __str__(self):
+        partes = [self.logradouro, self.numero, self.bairro, self.cidade]
+        return f"{self.descricao}: " + (", ".join(p for p in partes if p) or "endereço incompleto")
 
 
 class HistoricoCNPJ(models.Model):
@@ -91,6 +191,7 @@ class Contato(models.Model):
             if anterior and anterior.data_fim is None and self.data_fim is not None:
                 from .destinatarios import registrar_encerramento_direto
                 registrar_encerramento_direto(self)
+            Cliente.registrar_alteracao(self.cliente_id)
             return resultado
 
     def __str__(self):

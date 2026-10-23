@@ -99,6 +99,18 @@ registra o estado sem recriar a tabela SQL existente.
 Contatos diretos e vinculos historicos de administradoras tambem estao
 implementados, conforme as secoes abaixo. Responsabilidades e configuração de destinatários estão implementadas; envio real de documentos continua pendente.
 
+## Integração Jiraya (somente leitura)
+
+Contrato: [docs/INTEGRACAO_JIRAYA.md](../docs/INTEGRACAO_JIRAYA.md). Para ligar, gere um token e coloque em `backend/.env` (nunca no Git):
+
+```
+DJANGO_INTEGRACAO_JIRAYA_TOKEN=<valor gerado>
+```
+
+Gerar: `.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(48))"`. Vazio ou com menos de 32 caracteres, a integração fica desligada (401). O Jiraya chama `GET <URL do sistema>/api/integracao/v1/clientes/...` com `Authorization: Bearer <token>`. O token só lê essas rotas; não abre painel, admin nem `/api/v1/`.
+
+Pessoa física e endereços (migration 0010): `POST /api/v1/clientes/` aceita `tipo_pessoa` (`PJ` padrão ou `PF`), `cpf` (obrigatório para PF; PJ usa `cnpj`) e `ativo`. O endereço enviado no cadastro vira o endereço principal; depois, use `/api/v1/enderecos/?cliente=ID` (GET/POST/PUT/PATCH, sem DELETE; endereço que deixa de valer fica `ativo: false`). Ler endereços exige `view_cliente`; cadastrar ou editar exige `change_cliente`.
+
 ## Cadastro com consulta por CNPJ
 
 Em Adicionar cliente, CNPJ e o primeiro campo. Ao completa-lo, o navegador

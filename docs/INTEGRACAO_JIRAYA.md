@@ -1,6 +1,6 @@
 # Integração com o Jiraya — contrato da API de leitura
 
-**Situação: proposta, aguardando aprovação do usuário.** Nada deste documento está implementado ainda. Depois do OK, este arquivo passa a ser o contrato vigente; mudanças posteriores seguem a seção [Versionamento](#versionamento).
+**Situação: contrato vigente (v1).** Aprovado pelo usuário em 23/10/2026, junto com as decisões de pessoa física e endereços registradas em [regras de negócio](REGRAS_NEGOCIO.md). Implementado em `backend/clientes/integracao.py` (rotas em `backend/config/urls.py`). Mudanças posteriores seguem a seção [Versionamento](#versionamento).
 
 ## Contexto e decisão
 
@@ -24,7 +24,7 @@ Fluxo esperado no Jiraya:
 ## Convenções
 
 - JSON UTF-8. Nomes de campo em português, `snake_case`, sem acento.
-- Datas e horas em ISO 8601 com fuso de Fortaleza: `2026-10-24T10:15:30-03:00`; datas puras como `2026-10-24`.
+- Datas e horas em ISO 8601 com fuso de Fortaleza: `2026-10-24T10:15:30-03:00`; datas puras como `2026-10-24`. Quando houver fração de segundo, ela vem junto (`2026-10-24T10:15:30.123456-03:00`); o Jiraya deve guardar o valor exatamente como recebido. Em parâmetros de URL, codificar o valor (o `+` de um deslocamento positivo vira espaço se não for codificado).
 - Campo opcional sem valor vem como `null` (nunca omitido).
 - Documento sem máscara: CNPJ com 14 caracteres (já preparado para o CNPJ alfanumérico), CPF com 11 dígitos. A busca aceita com ou sem máscara.
 - Ids são inteiros permanentes; nunca são reaproveitados. Cliente e endereço não são apagados: deixam de valer pela situação `ativo: false`.
@@ -172,3 +172,4 @@ Escrita de qualquer tipo, administradora, contratos, histórico de CNPJ, contato
 ## Histórico do contrato
 
 - 23/10/2026 — proposta inicial (v1).
+- 23/10/2026 — aprovada pelo usuário e implementada; esclarecida a fração de segundo em `atualizado_em`.

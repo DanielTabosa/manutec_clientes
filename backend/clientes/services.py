@@ -4,10 +4,12 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import Cliente, HistoricoCNPJ, Administradora, ClienteAdministradora, Responsabilidade
+from .models import Cliente, Endereco, HistoricoCNPJ, Administradora, ClienteAdministradora, Responsabilidade
 from .cnpj import normalizar_cnpj
+from .cpf import normalizar_cpf
 
 ENDERECO_OBRIGATORIO = ("logradouro", "numero", "bairro", "cidade", "estado", "cep")
+ENDERECO_CAMPOS = ("cep", "logradouro", "numero", "complemento", "bairro", "cidade", "estado")
 
 
 def alterar_administradora(cliente_id, *, acao, data, administradora=None):
@@ -51,18 +53,38 @@ def alterar_administradora(cliente_id, *, acao, data, administradora=None):
         raise ValidationError({"administradora": "Não foi possível alterar o vínculo. Atualize a página e tente novamente."}) from exc
 
 
-def cadastrar_cliente(*, cnpj, data_inicio=None, exigir_endereco=True, **dados):
-    """Cadastro manual exige endereço completo; a importação em lote aceita incompleto (aparece como pendência)."""
-    cnpj = normalizar_cnpj(cnpj)
+def cadastrar_cliente(*, tipo_pessoa=Cliente.PJ, cnpj=None, cpf=None, data_inicio=None, exigir_endereco=True, **dados):
+    """Cadastra o cliente com o documento (CNPJ no histórico ou CPF fixo) e o endereço principal.
+
+    Cadastro manual exige endereço completo; a importação em lote aceita incompleto (aparece como pendência)."""
+    endereco = {campo: dados.pop(campo, None) for campo in ENDERECO_CAMPOS}
     errors = {campo: "Este campo é obrigatório." for campo in ENDERECO_OBRIGATORIO
-              if exigir_endereco and not str(dados.get(campo) or "").strip()}
+              if exigir_endereco and not str(endereco.get(campo) or "").strip()}
+    if tipo_pessoa == Cliente.PJ:
+        if not cnpj:
+            errors["cnpj"] = "Informe o CNPJ."
+        else:
+            cnpj = normalizar_cnpj(cnpj)
+    elif tipo_pessoa == Cliente.PF:
+        try:
+            cpf = normalizar_cpf(cpf or "")
+        except ValidationError as exc:
+            errors["cpf"] = exc.messages
+        else:
+            if Cliente.objects.filter(cpf=cpf).exists():
+                errors["cpf"] = "Este CPF já pertence a um cliente cadastrado."
+    else:
+        errors["tipo_pessoa"] = "Escolha pessoa jurídica ou física."
     if errors:
         raise ValidationError(errors)
     with transaction.atomic():
-        cliente = Cliente(**dados)
+        cliente = Cliente(tipo_pessoa=tipo_pessoa, cpf=cpf if tipo_pessoa == Cliente.PF else None, **dados)
         cliente.full_clean()
         cliente.save()
-        trocar_cnpj(cliente.pk, cnpj, data_inicio or timezone.now().date())
+        if tipo_pessoa == Cliente.PJ:
+            trocar_cnpj(cliente.pk, cnpj, data_inicio or timezone.now().date())
+        if any(str(v or "").strip() for v in endereco.values()):
+            Endereco(cliente=cliente, descricao="Principal", principal=True, **endereco).save()
         return cliente
 
 
@@ -72,6 +94,8 @@ def trocar_cnpj(cliente_id, cnpj, data_inicio):
     try:
         with transaction.atomic():
             cliente = Cliente.objects.select_for_update().get(pk=cliente_id)
+            if cliente.pessoa_fisica:
+                raise ValidationError({"cnpj": "Cliente pessoa física não tem CNPJ; o documento é o CPF do cadastro."})
             novo = HistoricoCNPJ(cliente=cliente, cnpj=cnpj, data_inicio=data_inicio)
             novo.clean_fields()
             if data_inicio > timezone.now().date():

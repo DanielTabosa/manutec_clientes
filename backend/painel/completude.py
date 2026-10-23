@@ -4,10 +4,11 @@ Mesmos cinco itens da ficha do cliente. "Quem recebe documentos" é aproximado e
 do condomínio ou do padrão da administradora atual tem itens (a ficha usa o cálculo exato)."""
 from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Subquery, Value, When
 
-from clientes.models import (ClienteAdministradora, Contato, HistoricoCNPJ, ItemDestinatario, RevisaoDestinatarios)
+from clientes.models import (Cliente, ClienteAdministradora, Contato, Endereco, HistoricoCNPJ, ItemDestinatario,
+                             RevisaoDestinatarios)
 
 PENDENCIAS = [
-    ('cnpj', 'Sem CNPJ atual'),
+    ('cnpj', 'Sem CNPJ/CPF atual'),
     ('endereco', 'Endereço incompleto'),
     ('administradora', 'Sem administradora'),
     ('email', 'Sem contato com e-mail'),
@@ -21,15 +22,17 @@ def _booleano(*condicoes):
 
 
 def anotar(qs):
-    endereco = Q()
+    # Endereço completo = o endereço principal tem todos os campos obrigatórios.
+    endereco = Endereco.objects.filter(cliente=OuterRef('pk'), principal=True)
     for campo in CAMPOS_ENDERECO:
-        endereco &= Q(**{campo + '__isnull': False}) & ~Q(**{campo: ''})
+        endereco = endereco.filter(**{campo + '__isnull': False}).exclude(**{campo: ''})
     ultima = RevisaoDestinatarios.objects.filter(configuracao=OuterRef('configuracao')).order_by('-numero').values('pk')[:1]
     ultimas = RevisaoDestinatarios.objects.annotate(ultima=Subquery(ultima)).filter(pk=F('ultima')).values('pk')
     itens = ItemDestinatario.objects.filter(revisao__in=ultimas, encerrado_local=False)
     return qs.annotate(
-        ok_cnpj=_booleano(Exists(HistoricoCNPJ.objects.filter(cliente=OuterRef('pk'), data_fim__isnull=True))),
-        ok_endereco=_booleano(endereco),
+        ok_cnpj=_booleano(Q(tipo_pessoa=Cliente.PF),
+                          Exists(HistoricoCNPJ.objects.filter(cliente=OuterRef('pk'), data_fim__isnull=True))),
+        ok_endereco=_booleano(Exists(endereco)),
         ok_administradora=_booleano(Exists(ClienteAdministradora.objects.filter(cliente=OuterRef('pk'), data_fim__isnull=True))),
         ok_email=_booleano(Exists(Contato.objects.filter(cliente=OuterRef('pk'), data_fim__isnull=True, email__gt=''))),
         ok_destinatarios=_booleano(

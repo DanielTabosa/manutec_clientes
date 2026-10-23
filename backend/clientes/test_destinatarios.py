@@ -30,7 +30,7 @@ class DestinatariosTests(TransactionTestCase):
 
     def tearDown(self):
         with connection.cursor() as cursor:
-            for table in ('clientes_itemdestinatario','clientes_revisaodestinatarios','clientes_configuracaodestinatarios','responsabilidades','contatos_administradora','cliente_administradora','administradoras','contatos','historico_cnpj','clientes'):
+            for table in ('clientes_itemdestinatario','clientes_revisaodestinatarios','clientes_configuracaodestinatarios','responsabilidades','contatos_administradora','cliente_administradora','administradoras','contatos','historico_cnpj','clientes_endereco','clientes'):
                 cursor.execute('DELETE FROM ' + connection.ops.quote_name(table))
 
     def padrao(self, contato=None, numero=0, **categorias):

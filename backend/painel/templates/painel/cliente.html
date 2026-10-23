@@ -6,7 +6,7 @@
 <div class="page-head">
   <div>
     <h1>{{ cliente.razao_social }}</h1>
-    <p class="lead">{% if cliente.nome_fantasia %}{{ cliente.nome_fantasia }} · {% endif %}<span class="num-data">{{ cliente.cnpj_atual|cnpj|default:"Sem CNPJ atual" }}</span></p>
+    <p class="lead">{% if cliente.nome_fantasia %}{{ cliente.nome_fantasia }} · {% endif %}<span class="num-data">{{ cliente.documento|documento|default:"Sem CNPJ atual" }}</span>{% if cliente.pessoa_fisica %} · Pessoa física{% endif %}{% if not cliente.ativo %} · <span class="chip chip-warn">Inativo</span>{% endif %}</p>
   </div>
   <div class="actions">
     {% if perms.clientes.change_cliente %}<a class="btn btn-primary" href="{% url 'painel:cliente_editar' cliente.pk %}"><svg class="i"><use href="#i-file"/></svg>Editar cadastro</a>{% endif %}
@@ -18,23 +18,46 @@
   <div class="stack">
     <section class="card" aria-labelledby="t-dados">
       <div class="card-head"><div><h2 id="t-dados">Cadastro</h2><p class="muted small">Cadastrado em {{ cliente.criado_em|date:"d/m/Y" }} · atualizado em {{ cliente.atualizado_em|date:"d/m/Y H:i" }}</p></div>
-        {% if perms.clientes.change_cliente %}<span class="actions"><a class="btn btn-sm" href="{% url 'painel:cliente_cnpj' cliente.pk %}">Trocar CNPJ</a>{% if perms.clientes.view_administradora %}<a class="btn btn-sm" href="{% url 'painel:cliente_administradora' cliente.pk %}">Administradora</a>{% endif %}<a class="btn btn-sm" href="{% url 'painel:cliente_editar' cliente.pk %}">Editar</a></span>{% endif %}</div>
+        {% if perms.clientes.change_cliente %}<span class="actions">{% if not cliente.pessoa_fisica %}<a class="btn btn-sm" href="{% url 'painel:cliente_cnpj' cliente.pk %}">Trocar CNPJ</a>{% endif %}{% if perms.clientes.view_administradora %}<a class="btn btn-sm" href="{% url 'painel:cliente_administradora' cliente.pk %}">Administradora</a>{% endif %}<a class="btn btn-sm" href="{% url 'painel:cliente_editar' cliente.pk %}">Editar</a></span>{% endif %}</div>
       <div class="card-body">
         <div class="completude" aria-label="Completude do cadastro">
           <div class="completude-topo"><strong>Cadastro {{ completos }}/{{ completude|length }}</strong><span class="barra-prog" role="img" aria-label="{{ completos }} de {{ completude|length }} itens completos"><span style="width:{% widthratio completos completude|length 100 %}%"></span></span></div>
           <ul class="chips">{% for nome, ok in completude %}<li class="chip {% if ok %}chip-ok{% else %}chip-warn{% endif %}"><svg class="i" style="width:14px;height:14px" aria-hidden="true"><use href="#i-{% if ok %}check{% else %}alert{% endif %}"/></svg>{{ nome }}</li>{% endfor %}</ul>
         </div>
         <dl class="dl-2">
+          {% if cliente.pessoa_fisica %}
+          <div><dt>Nome completo</dt><dd>{{ cliente.razao_social }}</dd></div>
+          <div><dt>CPF</dt><dd class="num-data">{{ cliente.cpf|documento }}</dd></div>
+          {% else %}
           <div><dt>Razão social</dt><dd>{{ cliente.razao_social }}</dd></div>
           <div><dt>Nome fantasia</dt><dd>{{ cliente.nome_fantasia|default:"—" }}</dd></div>
           <div><dt>CNPJ atual</dt><dd class="num-data">{{ cliente.cnpj_atual|cnpj|default:"—" }}</dd></div>
+          {% endif %}
+          <div><dt>Situação</dt><dd>{% if cliente.ativo %}Ativo{% else %}Inativo{% endif %}</dd></div>
           <div><dt>Administradora</dt><dd>{% if vinculo %}{% if perms.clientes.view_administradora %}<a href="{% url 'painel:administradora' vinculo.administradora_id %}">{{ vinculo.administradora }}</a>{% else %}{{ vinculo.administradora }}{% endif %}<div class="muted small">desde {{ vinculo.data_inicio|date:"d/m/Y" }}</div>{% else %}Sem administradora{% endif %}</dd></div>
-          <div class="dl-largo"><dt>Endereço</dt><dd>{% if cliente.logradouro %}{{ cliente.logradouro }}{% if cliente.numero %}, {{ cliente.numero }}{% endif %}{% if cliente.complemento %} — {{ cliente.complemento }}{% endif %}<br>{{ cliente.bairro|default:"" }}{% if cliente.cidade %} · {{ cliente.cidade }}/{{ cliente.estado }}{% endif %}{% if cliente.cep %} · CEP {{ cliente.cep|slice:":5" }}-{{ cliente.cep|slice:"5:" }}{% endif %}{% else %}—{% endif %}</dd></div>
           {% if cliente.observacoes %}<div class="dl-largo"><dt>Observações</dt><dd>{{ cliente.observacoes|linebreaksbr }}</dd></div>{% endif %}
           {% if cnpjs_anteriores %}<div><dt>CNPJs anteriores</dt><dd class="num-data">{% for h in cnpjs_anteriores %}{{ h.cnpj|cnpj }}<span class="muted small"> até {{ h.data_fim|date:"d/m/Y" }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd></div>{% endif %}
           {% if administradoras_anteriores %}<div><dt>Administradoras anteriores</dt><dd>{% for v in administradoras_anteriores %}{{ v.administradora }}<span class="muted small"> {{ v.data_inicio|date:"d/m/Y" }} a {{ v.data_fim|date:"d/m/Y" }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd></div>{% endif %}
         </dl>
       </div>
+    </section>
+
+    <section class="card" aria-labelledby="t-enderecos">
+      <div class="card-head"><div><h2 id="t-enderecos">Endereços de atendimento <span class="count">{{ enderecos|length }}</span></h2><p class="muted small">Locais atendidos (matriz, filiais). Bloco ou torre ficam no complemento.</p></div>{% if perms.clientes.change_cliente %}<a class="btn btn-sm btn-primary" href="{% url 'painel:endereco_novo' cliente.pk %}"><svg class="i"><use href="#i-plus"/></svg>Novo endereço</a>{% endif %}</div>
+      {% if enderecos %}
+      <div class="table-wrap"><table class="table responsive">
+        <thead><tr><th>Descrição</th><th>Endereço</th><th>Cidade</th><th>CEP</th><th><span class="sr">Ações</span></th></tr></thead>
+        <tbody>{% for e in enderecos %}<tr data-endereco>
+          <td data-label="Descrição"><strong>{{ e.descricao }}</strong>{% if e.principal and e.descricao != "Principal" %} <span class="chip chip-info">Principal</span>{% endif %}{% if not e.completo %} <span class="chip chip-warn">Incompleto</span>{% endif %}</td>
+          <td data-label="Endereço">{{ e.logradouro|default:"—" }}{% if e.numero %}, {{ e.numero }}{% endif %}{% if e.complemento %} — {{ e.complemento }}{% endif %}{% if e.bairro %}<div class="row-sub">{{ e.bairro }}</div>{% endif %}</td>
+          <td data-label="Cidade">{% if e.cidade %}{{ e.cidade }}{% if e.estado %}/{{ e.estado }}{% endif %}{% else %}—{% endif %}</td>
+          <td data-label="CEP" class="num-data">{% if e.cep %}{{ e.cep|slice:":5" }}-{{ e.cep|slice:"5:" }}{% else %}—{% endif %}</td>
+          <td class="acoes">{% if perms.clientes.change_cliente %}<a class="btn btn-sm btn-ghost" href="{% url 'painel:endereco_editar' e.pk %}" aria-label="Editar endereço {{ e.descricao }}">Editar</a>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<div class="empty"><strong>Nenhum endereço ativo</strong>Cadastre o endereço principal de atendimento.</div>{% endif %}
+      {% if enderecos_inativos %}<details class="hist" style="border-top:1px solid var(--border)"><summary><span class="worklist-main"><strong>Endereços inativos ({{ enderecos_inativos|length }})</strong><span class="row-sub">Mantidos para os atendimentos anteriores</span></span></summary>
+        <ul class="doc-list" style="padding:0 20px 14px">{% for e in enderecos_inativos %}<li><strong>{{ e.descricao }}</strong><span class="muted small">{{ e.logradouro|default:"" }}{% if e.numero %}, {{ e.numero }}{% endif %}{% if e.cidade %} · {{ e.cidade }}/{{ e.estado }}{% endif %}</span>{% if perms.clientes.change_cliente %}<a class="small" href="{% url 'painel:endereco_editar' e.pk %}">Editar</a>{% endif %}</li>{% endfor %}</ul></details>{% endif %}
     </section>
 
     {% if contratos is not None %}

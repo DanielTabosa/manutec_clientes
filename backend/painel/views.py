@@ -2,11 +2,12 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
 from django.db.models import OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from clientes import destinatarios, preparacao as servico, preparacao_fluxo as fluxo
-from clientes.models import (Cliente, ClienteAdministradora, Contato, DestinatarioPreparacao, HistoricoCNPJ,
+from clientes.models import (Cliente, ClienteAdministradora, Contato, DestinatarioPreparacao, Endereco, HistoricoCNPJ,
                              PreparacaoEnvio)
 from clientes.preparacao_models import NOMES_CATEGORIAS
 
@@ -28,7 +29,20 @@ class Entrar(auth_views.LoginView):
 def _clientes_anotados():
     cnpj = HistoricoCNPJ.objects.filter(cliente=OuterRef('pk'), data_fim__isnull=True).values('cnpj')[:1]
     admin = ClienteAdministradora.objects.filter(cliente=OuterRef('pk'), data_fim__isnull=True).values('administradora__razao_social')[:1]
-    return Cliente.objects.annotate(cnpj_atual=Subquery(cnpj), administradora_atual=Subquery(admin))
+    principal = Endereco.objects.filter(cliente=OuterRef('pk'), principal=True)
+    return Cliente.objects.annotate(
+        cnpj_atual=Subquery(cnpj), documento=Coalesce('cpf', Subquery(cnpj)), administradora_atual=Subquery(admin),
+        cidade_principal=Subquery(principal.values('cidade')[:1]), uf_principal=Subquery(principal.values('estado')[:1]))
+
+
+def _filtro_busca(termo):
+    """Nome, fantasia, cidade de qualquer endereço e documento (CPF ou CNPJ atual/anterior)."""
+    filtro = (Q(razao_social__icontains=termo) | Q(nome_fantasia__icontains=termo) |
+              Q(enderecos__cidade__icontains=termo))
+    digitos = ''.join(c for c in termo if c.isalnum()).upper()
+    if len(digitos) >= 4 and any(c.isdigit() for c in digitos):
+        filtro |= Q(historico_cnpj__cnpj__icontains=digitos) | Q(cpf__icontains=digitos)
+    return filtro
 
 
 @login_required
@@ -95,11 +109,7 @@ def clientes(request):
     if pendencia in dict(completude.PENDENCIAS):
         lista = lista.filter(completude.filtro_pendencia(pendencia))
     if termo:
-        digitos = ''.join(c for c in termo if c.isalnum())
-        filtro = Q(razao_social__icontains=termo) | Q(nome_fantasia__icontains=termo) | Q(cidade__icontains=termo)
-        if len(digitos) >= 4 and any(c.isdigit() for c in digitos):
-            filtro |= Q(historico_cnpj__cnpj__icontains=digitos.upper())
-        lista = lista.filter(filtro).distinct()
+        lista = lista.filter(_filtro_busca(termo)).distinct()
     pagina = Paginator(lista, 25).get_page(request.GET.get('pagina'))
     for c in pagina:
         c.pontos = completude.pontos(c)
@@ -117,17 +127,19 @@ def cliente(request, pk):
                              origens=[ORIGENS[o] for o in item['origens']]))
     from clientes.models import Responsabilidade
     contatos = list(Contato.objects.filter(cliente=obj, data_fim__isnull=True).order_by('nome'))
-    endereco_ok = all([obj.logradouro, obj.numero, obj.bairro, obj.cidade, obj.estado, obj.cep])
+    enderecos = list(obj.enderecos.all())
+    principal = next((e for e in enderecos if e.principal), None)
     # Completude do cadastro: o foco do sistema é uma base de clientes confiável.
     completude = [
-        ('CNPJ atual', bool(obj.cnpj_atual)),
-        ('Endereço completo', endereco_ok),
+        ('Documento atual', bool(obj.documento)),
+        ('Endereço completo', bool(principal and principal.completo)),
         ('Administradora definida', bool(vinculo)),
         ('Contato com e-mail', any(c.email for c in contatos)),
         ('Quem recebe documentos', bool(efetivos)),
     ]
     ctx = dict(
-        secao='clientes', cliente=obj, vinculo=vinculo, efetivos=efetivos, contatos=contatos, completude=completude,
+        secao='clientes', cliente=obj, vinculo=vinculo, enderecos=[e for e in enderecos if e.ativo],
+        enderecos_inativos=[e for e in enderecos if not e.ativo], efetivos=efetivos, contatos=contatos, completude=completude,
         completos=sum(1 for _, ok in completude if ok),
         contatos_encerrados=Contato.objects.filter(cliente=obj, data_fim__isnull=False).order_by('-data_fim'),
         administradoras_anteriores=ClienteAdministradora.objects.select_related('administradora')
@@ -193,10 +205,7 @@ def busca(request):
         digitos = ''.join(c for c in termo if c.isalnum()).upper()
         tem_numero = len(digitos) >= 4 and any(c.isdigit() for c in digitos)
         if request.user.has_perm('clientes.view_cliente'):
-            filtro = Q(razao_social__icontains=termo) | Q(nome_fantasia__icontains=termo) | Q(cidade__icontains=termo)
-            if tem_numero:
-                filtro |= Q(historico_cnpj__cnpj__icontains=digitos)
-            resultados['clientes'] = list(_clientes_anotados().filter(filtro).distinct().order_by('razao_social')[:8])
+            resultados['clientes'] = list(_clientes_anotados().filter(_filtro_busca(termo)).distinct().order_by('razao_social')[:8])
         if request.user.has_perm('clientes.view_administradora'):
             filtro = Q(razao_social__icontains=termo) | Q(nome_fantasia__icontains=termo)
             if tem_numero:

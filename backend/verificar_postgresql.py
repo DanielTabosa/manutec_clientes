@@ -69,10 +69,40 @@ def worker():
         legado_id = cursor.fetchone()[0]
         cursor.execute("INSERT INTO historico_cnpj (cliente_id,cnpj,data_inicio) VALUES (%s,'98000000000100','2020-01-01')", [legado_id])
         cursor.execute("INSERT INTO destinatarios_faturamento (cliente_id,email,tipo_destinatario,data_inicio) VALUES (%s,'legado@example.invalid','copia','2020-01-01')", [legado_id])
+    call_command('migrate', 'clientes', '0009', verbosity=0, interactive=False)
+    # 0010: endereço único vira o principal; completo, parcial e vazio, sem perder dado. Ida, volta e ida de novo.
+    enderecos_legado = {}
+    with transaction.atomic(), connection.cursor() as cursor:
+        for i, campos in enumerate([("60000000", "Rua Legado", "S/N", "Bloco B", "Centro", "Fortaleza", "CE"),
+                                    (None, None, None, None, None, "Recife", None),
+                                    (None, None, None, None, None, None, None)]):
+            cursor.execute("INSERT INTO clientes (razao_social, cep, logradouro, numero, complemento, bairro, cidade, estado) "
+                           "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id", [f'Legado endereço {i}', *campos])
+            cid = cursor.fetchone()[0]
+            cursor.execute("INSERT INTO historico_cnpj (cliente_id,cnpj,data_inicio) VALUES (%s,%s,'2020-01-01')", [cid, f'9700000000{i}100'])
+            enderecos_legado[cid] = campos
+
+    def conferir_enderecos():
+        with connection.cursor() as cursor:
+            for cid, campos in enderecos_legado.items():
+                cursor.execute("SELECT descricao, principal, ativo, cep, logradouro, numero, complemento, bairro, cidade, estado "
+                               "FROM clientes_endereco WHERE cliente_id=%s", [cid])
+                linhas = cursor.fetchall()
+                assert linhas == ([] if not any(campos) else [('Principal', True, True, *campos)]), (cid, linhas)
     call_command('migrate', verbosity=0, interactive=False)
+    conferir_enderecos()
+    call_command('migrate', 'clientes', '0009', verbosity=0, interactive=False)
+    with connection.cursor() as cursor:
+        for cid, campos in enderecos_legado.items():
+            cursor.execute("SELECT cep, logradouro, numero, complemento, bairro, cidade, estado FROM clientes WHERE id=%s", [cid])
+            assert cursor.fetchone() == campos
+    call_command('migrate', verbosity=0, interactive=False)
+    conferir_enderecos()
     with connection.cursor() as cursor:
         cursor.execute('SELECT email,tipo_destinatario FROM destinatarios_faturamento WHERE cliente_id=%s',[legado_id])
         assert cursor.fetchone() == ('legado@example.invalid','copia')
+        cursor.execute("SELECT count(*) FROM information_schema.columns WHERE table_name='clientes' AND column_name IN ('logradouro','cidade','cep')")
+        assert cursor.fetchone()[0] == 0
 
 
     class Validacao(unittest.TestCase):
@@ -373,6 +403,61 @@ def worker():
         self.assertEqual(self.c.contratos.count(), 2)
 
     Validacao.test_contratos_constraints_e_protecao = test_contratos_constraints_e_protecao
+
+    def test_pessoa_fisica_triggers_e_restricoes(self):
+        pf = cadastrar_cliente(tipo_pessoa='PF', cpf='52998224725', razao_social='Residência QA',
+                               logradouro='Rua', numero='1', bairro='B', cidade='Fortaleza', estado='CE', cep='60000000')
+        self.assertEqual((Cliente.objects.get(pk=pf.pk).cpf, pf.historico_cnpj.count()), ('52998224725', 0))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with connection.cursor() as cursor:  # PF não recebe CNPJ nem por SQL direto (trigger diferido)
+                cursor.execute("INSERT INTO historico_cnpj (cliente_id,cnpj,data_inicio) VALUES (%s,'96000000000100','2020-01-01')", [pf.pk])
+        for comando in ("UPDATE clientes SET tipo_pessoa='PJ', cpf=NULL WHERE id=%s",
+                        "UPDATE clientes SET cpf='123' WHERE id=%s",
+                        "UPDATE clientes SET cpf=NULL WHERE id=%s"):
+            with self.assertRaises(IntegrityError, msg=comando), transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(comando, [pf.pk])
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("UPDATE clientes SET tipo_pessoa='PF', cpf='11144477735' WHERE id=%s", [self.c.pk])
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("INSERT INTO clientes (razao_social, tipo_pessoa, cpf) VALUES ('Dup', 'PF', '52998224725')")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Cliente.objects.create(razao_social='PJ sem CNPJ QA')
+
+    def test_enderecos_principal_unico_e_atualizacao(self):
+        from clientes.models import Endereco
+        principal = self.c.enderecos.get()
+        filial = Endereco(cliente=self.c, descricao='Filial QA', logradouro='Rua F')
+        filial.save()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Endereco.objects.filter(pk=filial.pk).update(principal=True)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Endereco.objects.filter(pk=principal.pk).update(ativo=False)
+        antes = Cliente.objects.get(pk=self.c.pk).atualizado_em
+        filial.principal = True
+        filial.save()
+        self.assertEqual(list(self.c.enderecos.filter(principal=True).values_list('pk', flat=True)), [filial.pk])
+        self.assertGreater(Cliente.objects.get(pk=self.c.pk).atualizado_em, antes)
+
+    def test_integracao_jiraya_no_postgresql(self):
+        token = 'q' * 40
+        api = APIClient()
+        with override_settings(INTEGRACAO_JIRAYA_TOKEN=token, ALLOWED_HOSTS=['testserver']):
+            self.assertEqual(api.get('/api/integracao/v1/clientes/?busca=condominio').status_code, 401)
+            api.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
+            busca = api.get('/api/integracao/v1/clientes/', {'busca': self.c.razao_social, 'situacao': 'todos'}).json()
+            self.assertIn(self.c.pk, [r['id'] for r in busca['resultados']])
+            detalhe = api.get(f'/api/integracao/v1/clientes/{self.c.pk}/').json()
+            self.assertEqual((detalhe['documento']['tipo'], len(detalhe['enderecos'])), ('CNPJ', 1))
+            alteracoes = api.get('/api/integracao/v1/clientes/alteracoes/', {'desde': '2000-01-01T00:00:00-03:00', 'limite': 200}).json()
+            self.assertIn(self.c.pk, [r['id'] for r in alteracoes['resultados']])
+            self.assertEqual(api.post('/api/integracao/v1/clientes/', {}).status_code, 405)
+
+    for _teste in (test_pessoa_fisica_triggers_e_restricoes, test_enderecos_principal_unico_e_atualizacao,
+                   test_integracao_jiraya_no_postgresql):
+        setattr(Validacao, _teste.__name__, _teste)
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Validacao))
     if not result.wasSuccessful(): sys.exit(1)
     # Usuário fictício apenas no banco descartável, para inspeção visual local.
@@ -388,7 +473,12 @@ def worker():
         alterar_administradora(c.pk, acao='vincular', administradora=a, data=date(2020, 1, 1))
         Contrato.objects.create(cliente=c, tipo=tipos[0], data_inicio=date(2024, 1, 1), identificador=f'V{i}')
     Contrato.objects.create(cliente=c, tipo=tipos[1], situacao='suspenso', data_inicio=date(2024, 6, 1))
-    print('PostgreSQL: 15 verificações aprovadas; schema e migrations instalados apenas no banco descartável.',flush=True)
+    from clientes.models import Endereco
+    pf = cadastrar_cliente(tipo_pessoa='PF', cpf='111.444.777-35', razao_social='Maria Visual Residência',
+        logradouro='Rua das Flores', numero='20', bairro='Aldeota', cidade='Fortaleza', estado='CE', cep='60150000')
+    Endereco(cliente=pf, descricao='Casa de praia', logradouro='Av. Beira Mar', numero='S/N', bairro='Cumbuco',
+             cidade='Caucaia', estado='CE', cep='61619000').save()
+    print('PostgreSQL: 18 verificações aprovadas, migration 0010 conferida na ida e na volta; schema e migrations instalados apenas no banco descartável.',flush=True)
 
 
 if __name__=='__main__': main()

@@ -21,7 +21,8 @@ O schema contém oito tabelas de domínio; sua existência na instalação foi r
 
 | Tabela | Estado no backend |
 | --- | --- |
-| `clientes` | Cadastro, edição, endereço, pesquisa e permissões |
+| `clientes` | Cadastro PJ/PF (CPF), situação ativo/inativo, edição, pesquisa e permissões; endereço movido para `clientes_endereco` pela 0010 |
+| `clientes_endereco` | Endereços de atendimento (vários por cliente, um principal), migration 0010 |
 | `historico_cnpj` | Atual/histórico, troca transacional e obrigatoriedade via migration 0003 |
 | `contatos` | Contatos diretos, edição, encerramento, pesquisa e filtro de vigência |
 | `administradoras` | Cadastro, edição, pesquisa, telefone/e-mail e CNPJ opcional |
@@ -48,6 +49,8 @@ Prefixo `/api/v1/`; sem DELETE:
 | `clientes/{id}/cnpj/` | GET atual/histórico, POST troca |
 | `clientes/{id}/administradora/` | GET atual/histórico, POST vincular/encerrar |
 | `contatos/?cliente=ID&vigente=true` | Filtro por cliente e vigência; `false` para encerrados |
+
+`/api/v1/enderecos/` (filtro `cliente`): GET/POST, detalhe GET/PUT/PATCH, sem DELETE; permissões do cliente. Integração Jiraya somente leitura em `/api/integracao/v1/` com token de serviço: [contrato](docs/INTEGRACAO_JIRAYA.md).
 
 Novas rotas `/api/v1/contatos-administradora/` e `/api/v1/responsabilidades/`: GET/POST, detalhe GET/PUT/PATCH, sem DELETE. Filtros e exemplos no README do backend.
 
@@ -221,3 +224,17 @@ Validação: 150 testes Django/SQLite (7 novos em `painel/test_contratos.py` e o
 
 Tipos de contrato informados pelo usuário e cadastrados no banco instalado em 14/10: Monitoramento Superior, Monitoramento Inferior, Manutenção de VRP e Manutenção de Bombas. Cliente com vários serviços recebe um contrato por tipo, sem tipos combinados. Próxima fase: implantação em produção.
 
+
+## Integração Jiraya, pessoa física e endereços — 23/10/2026
+
+Decisão D-66 do Jiraya (24/10/2026 no registro dele): o manutec-clientes é a fonte única de clientes; o Jiraya só consulta por API de leitura e guarda o id permanente do cliente e do endereço. Contrato aprovado pelo usuário em [docs/INTEGRACAO_JIRAYA.md](docs/INTEGRACAO_JIRAYA.md), com as oito decisões de negócio registradas em [regras](docs/REGRAS_NEGOCIO.md).
+
+- **Integração:** `GET /api/integracao/v1/clientes/?busca=` (sugestões, sem acento/caixa, por nome, fantasia e CPF/CNPJ atual ou anterior), `GET /api/integracao/v1/clientes/{id}/` (documento atual, endereços com id, contatos vigentes) e `GET /api/integracao/v1/clientes/alteracoes/?desde=` (cursor por `atualizado_em` e id). Token de serviço em `DJANGO_INTEGRACAO_JIRAYA_TOKEN`; só GET; erros no formato do contrato.
+- **Modelo:** cliente PF com CPF (dígitos conferidos, único, sem histórico), situação ativo/inativo, vários endereços de atendimento. Migration 0010 escrita e validada em PostgreSQL isolado; **ainda não aplicada ao banco instalado** (exige backup com restauração verificada e OK do usuário). Até lá, o código novo não funciona contra o banco instalado.
+- **Painel:** cadastro com escolha PJ/PF (campos trocam na tela), ficha com quadro "Endereços de atendimento" (novo, editar, principal, inativos), edição com situação e CPF, busca por CPF e por cidade de qualquer endereço. Admin com endereços só para consulta.
+- **API de escrita:** `/api/v1/clientes/` aceita `tipo_pessoa`, `cpf` e `ativo`; o endereço do cadastro vira o principal; depois, `/api/v1/enderecos/`.
+- **Importação CSV:** coluna "CNPJ ou CPF" e coluna opcional "Tipo (PJ ou PF)"; sem ela, o tipo é deduzido pelos dígitos (documento ambíguo pede a coluna Tipo).
+
+Validação: 161 testes Django/SQLite (11 novos em `clientes/test_integracao.py`), 56 Conta Azul e 18 verificações PostgreSQL descartáveis (novas: 0010 na ida, volta e ida com endereço completo, parcial e vazio; triggers e CHECKs de PF/CPF; principal único; integração com token). A verificação pegou e corrigiu um CHECK que aceitava CPF nulo. Telas conferidas no navegador em banco descartável (cadastro PJ/PF, ficha, endereço, edição); banco removido.
+
+Pendências: completude ainda conta "Administradora definida" também para residências (sem mudança de regra); `schema.sql` segue descrevendo a instalação original.

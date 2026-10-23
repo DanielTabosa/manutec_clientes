@@ -362,23 +362,25 @@ def importar_boleto_parcela(preparacao_id, parcela_id, autor):
 
 
 def importar_nfse_zip(preparacao_id, arquivo, competencia, autor):
-    """Anexa as NFS-e do ZIP cujo tomador é o CNPJ atual do cliente e que o Conta Azul confirma como EMITIDA."""
+    """Anexa as NFS-e do ZIP cujo tomador é o documento atual do cliente (CNPJ, ou CPF da pessoa física)
+    e que o Conta Azul confirma como EMITIDA."""
     import re
     import contaazul_nfse
-    from .models import HistoricoCNPJ
+    from .models import Cliente, HistoricoCNPJ
     caminho = contaazul_config()
     if not caminho:
         raise ValidationError('Busca no Conta Azul não configurada (DJANGO_CONTAAZUL_AMBIENTE).')
     prep = _rascunho_sem_bloqueio(preparacao_id)
     cnpjs = {re.sub(r'[^0-9]', '', c) for c in HistoricoCNPJ.objects.filter(
         cliente_id=prep.cliente_id, data_fim__isnull=True).values_list('cnpj', flat=True)}
+    cnpjs |= {c for c in Cliente.objects.filter(pk=prep.cliente_id).values_list('cpf', flat=True) if c}
     try:
         pares, problemas = contaazul_nfse.ler_zip(arquivo, com_pdf=True)
     except Exception:
         raise ValidationError('ZIP inválido, protegido ou acima dos limites (100 MB, 2.000 arquivos).')
     do_cliente = [par for par in pares if par['documento'] in cnpjs]
     if not do_cliente:
-        raise ValidationError(f'Nenhuma das {len(pares)} nota(s) do ZIP tem como tomador o CNPJ atual deste cliente. Nada foi anexado.')
+        raise ValidationError(f'Nenhuma das {len(pares)} nota(s) do ZIP tem como tomador o CNPJ/CPF atual deste cliente. Nada foi anexado.')
     try:
         notas = contaazul_nfse.consultar(competencia, caminho)
     except Exception as exc:

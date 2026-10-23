@@ -94,6 +94,7 @@ def cruzar(contratos):
     """Associa cada contrato a um cliente cadastrado: pelo documento (CNPJ atual) ou pelo nome normalizado."""
     from .models import Cliente, HistoricoCNPJ
     por_cnpj = dict(HistoricoCNPJ.objects.filter(data_fim__isnull=True).values_list('cnpj', 'cliente_id'))
+    por_cnpj.update(Cliente.objects.filter(cpf__isnull=False).values_list('cpf', 'pk'))
     por_nome = {}
     for pk, razao, fantasia in Cliente.objects.values_list('pk', 'razao_social', 'nome_fantasia'):
         for nome in (razao, fantasia):

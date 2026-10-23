@@ -7,8 +7,8 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
 from .models import ContatoAdministradora, Responsabilidade
-from .models import Cliente, HistoricoCNPJ, Contato
-from .forms import TrocaCNPJForm, CadastroClienteForm, ClienteEnderecoForm
+from .models import Cliente, Endereco, HistoricoCNPJ, Contato
+from .forms import TrocaCNPJForm, CadastroClienteForm, ClienteForm
 from .services import trocar_cnpj, cadastrar_cliente
 from .consulta import consultar_cnpj, consultar_cep, ErroConsulta
 from .models import Administradora, ClienteAdministradora
@@ -70,6 +70,25 @@ class HistoricoCNPJInline(admin.TabularInline):
     readonly_fields = fields
     extra = 0
     can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm("clientes.view_cliente")
+
+
+class EnderecoInline(admin.TabularInline):
+    """Somente consulta: endereços são cadastrados e editados na ficha do cliente no sistema."""
+    verbose_name_plural = "Endereços de atendimento"
+    model = Endereco
+    fields = ["descricao", "principal", "ativo", "logradouro", "numero", "complemento", "bairro", "cidade", "estado", "cep"]
+    readonly_fields = fields
+    can_delete = False
+    extra = 0
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -148,14 +167,20 @@ class ContatoAdmin(admin.ModelAdmin):
 
 @admin.register(Cliente)
 class ClienteAdmin(DestinatariosAdminMixin, admin.ModelAdmin):
-    form = ClienteEnderecoForm
+    form = ClienteForm
     change_form_template = "admin/clientes/editar_cliente.html"
-    fields = ["razao_social", "nome_fantasia", "cep", "logradouro", "numero", "complemento",
-              "bairro", "cidade", "estado", "observacoes", "gerenciar_destinatarios", "preparar_documentos", "id", "criado_em", "atualizado_em"]
-    list_display = ["id", "razao_social", "nome_fantasia", "cidade", "estado"]
-    search_fields = ["razao_social", "nome_fantasia", "cidade"]
-    readonly_fields = ["id", "criado_em", "atualizado_em", "gerenciar_destinatarios", "preparar_documentos"]
-    inlines = [HistoricoCNPJInline, ContatoInline, HistoricoAdministradoraInline]
+    fields = ["tipo_pessoa", "razao_social", "nome_fantasia", "cpf", "ativo", "observacoes", "gerenciar_destinatarios",
+              "preparar_documentos", "id", "criado_em", "atualizado_em"]
+    list_display = ["id", "razao_social", "nome_fantasia", "tipo_pessoa", "ativo"]
+    list_filter = ["tipo_pessoa", "ativo"]
+    search_fields = ["razao_social", "nome_fantasia", "cpf", "enderecos__cidade"]
+    readonly_fields = ["tipo_pessoa", "id", "criado_em", "atualizado_em", "gerenciar_destinatarios", "preparar_documentos"]
+    inlines = [HistoricoCNPJInline, EnderecoInline, ContatoInline, HistoricoAdministradoraInline]
+
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        remover = {"nome_fantasia"} if obj and obj.pessoa_fisica else {"cpf"}
+        return [f for f in fields if f not in remover]
 
     def preparar_documentos(self, obj):
         if not obj or not obj.pk:

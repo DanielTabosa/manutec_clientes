@@ -8,7 +8,7 @@ from django.test import TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Cliente, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora, ContatoAdministradora, Responsabilidade
+from .models import Cliente, Endereco, HistoricoCNPJ, Contato, Administradora, ClienteAdministradora, ContatoAdministradora, Responsabilidade
 
 
 class ClienteAPITests(TransactionTestCase):
@@ -27,7 +27,7 @@ class ClienteAPITests(TransactionTestCase):
         with connection.cursor() as cursor:
             for table in ('clientes_itemdestinatario', 'clientes_revisaodestinatarios', 'clientes_configuracaodestinatarios',
                           'responsabilidades', 'contatos_administradora', 'cliente_administradora', 'administradoras',
-                          'contatos', 'historico_cnpj', 'clientes'):
+                          'contatos', 'historico_cnpj', 'clientes_endereco', 'clientes'):
                 cursor.execute('DELETE FROM ' + connection.ops.quote_name(table))
 
     def autorizar(self, *codigos):
@@ -210,8 +210,9 @@ class ClienteAPITests(TransactionTestCase):
         self.assertEqual(self.api.get("/api/v1/clientes/").status_code, 403)
 
     def test_leitor_pesquisa_mas_nao_cadastra(self):
-        Cliente.objects.create(razao_social="Condominio Boa Vista", cidade="Fortaleza")
-        Cliente.objects.create(razao_social="Condominio Jardim", cidade="Recife")
+        from .models import Endereco
+        Endereco(cliente=Cliente.objects.create(razao_social="Condominio Boa Vista"), cidade="Fortaleza").save()
+        Endereco(cliente=Cliente.objects.create(razao_social="Condominio Jardim"), cidade="Recife").save()
         self.autorizar("view_cliente")
         response = self.api.get("/api/v1/clientes/?search=Fortaleza")
         self.assertEqual(response.status_code, 200)
@@ -419,14 +420,14 @@ class ClienteAPITests(TransactionTestCase):
                 consultar_cep("01001000")
 
     def test_cep_ordem_normalizacao_e_permissao(self):
-        from .forms import CadastroClienteForm, ClienteEnderecoForm
+        from .forms import CadastroClienteForm, EnderecoForm
         dados = self.dados_cadastro()
         dados["cep"] = "60000-000"
         form = CadastroClienteForm(dados)
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data["cep"], "60000000")
         self.assertLess(list(form.fields).index("cep"), list(form.fields).index("logradouro"))
-        edit = ClienteEnderecoForm(dados, instance=Cliente(razao_social="Editar"))
+        edit = EnderecoForm(dict(dados, descricao="Principal"), instance=Endereco(cliente=Cliente.objects.create(razao_social="Editar"), descricao="Principal"))
         self.assertTrue(edit.is_valid(), edit.errors)
         self.assertEqual(edit.cleaned_data["cep"], "60000000")
         self.user.is_staff = True
