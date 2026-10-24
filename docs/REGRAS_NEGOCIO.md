@@ -12,7 +12,7 @@ Estas regras registram decisões vigentes. Contatos de administradoras e respons
 
 ## Pessoa física, situação e endereços de atendimento
 
-Decisões do usuário em 23/10/2026 (requisitos aprovados da Manutec; integração com o Jiraya em [INTEGRACAO_JIRAYA.md](INTEGRACAO_JIRAYA.md)). Implementadas pela migration 0010.
+Decisões do usuário em 23/10/2026 (requisitos aprovados da Manutec; integração com o Jiraya em [INTEGRACAO_JIRAYA.md](INTEGRACAO_JIRAYA.md)). Implementadas pela migration 0010, aplicada ao banco instalado em 23/10/2026.
 
 - Cliente pode ser pessoa jurídica (CNPJ, com o histórico acima) ou pessoa física (residência, CPF). O tipo é escolhido no cadastro e não muda depois; se mudar na prática, cadastra-se outro cliente.
 - CPF não tem histórico: fica fixo no cadastro, é único entre clientes, tem os dígitos verificadores conferidos e só é corrigido em caso de erro de digitação. Pessoa física não tem CNPJ nem nome fantasia.

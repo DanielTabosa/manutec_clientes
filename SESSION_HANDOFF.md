@@ -4,11 +4,10 @@
 
 Implementado e validado: contrato de leitura para o Jiraya ([docs/INTEGRACAO_JIRAYA.md](docs/INTEGRACAO_JIRAYA.md), aprovado pelo usuário em 23/10), token de serviço e modelo novo (pessoa física com CPF, situação ativo/inativo, vários endereços de atendimento). Detalhes em `PROJECT_STATE.md` (seção de 23/10) e regras em `docs/REGRAS_NEGOCIO.md`.
 
-**Pendente, bloqueante:** aplicar a migration 0010 ao banco instalado. Só com OK explícito do usuário. Até lá, o código do `main` não funciona contra o banco instalado (falta `tipo_pessoa`, `cpf`, `ativo` e `clientes_endereco`); não suba o servidor do usuário com esse código antes de aplicar.
+**Migration 0010 aplicada ao banco instalado em 23/10/2026**, com OK do usuário. Antes: backup `.venv/backups/pre_0010_20261023/pre_0010.dump` (SHA-256 conferido) restaurado em banco temporário com contagem e md5 idênticos nas 27 tabelas (1.025 registros), e contagens do banco iguais às do backup no momento de aplicar. Depois: 360 endereços "Principal" ativos, um por cliente, idênticos campo a campo aos do backup restaurado; colunas de endereço removidas de `clientes`; 360 clientes PJ ativos sem CPF; CNPJs atuais preservados; demais tabelas iguais (só `django_migrations` +1 e `django_content_type` +1); quatro restrições validadas, índice do principal e três triggers ativos; `check` e `makemigrations --check` limpos; leitura da API de integração conferida (busca, detalhe e 401 sem token).
 
-- Backup feito em 23/10: `.venv/backups/pre_0010_20261023/pre_0010.dump` (116.153 bytes; SHA-256 em `verification.json`), restaurado em banco temporário com contagem e md5 do conteúdo idênticos nas 27 tabelas (1.025 registros); temporário removido. Banco instalado em 0009: 360 clientes, todos com algum campo de endereço (viram 360 endereços "Principal").
-- Para aplicar: `.venv\Scripts\python.exe backend/manage.py migrate` (a 0010 confere a cópia antes de remover as colunas). Depois, conferir: 360 linhas em `clientes_endereco`, todas principal/ativo; nenhuma coluna de endereço em `clientes`; todos `tipo_pessoa='PJ'` e `ativo`; `makemigrations --check` limpo; contagens das demais tabelas iguais ao `verification.json` (exceto `django_migrations` +1 e `django_content_type` +1).
-- Se precisar voltar: `migrate clientes 0009` devolve o endereço principal às colunas (recusa se já houver pessoa física) ou restaurar o dump.
+- Se precisar voltar: `migrate clientes 0009` devolve o endereço principal às colunas (recusa se já houver pessoa física) ou restaurar o dump `pre_0010`.
+- Próximo passo da integração: gerar o token, colocá-lo em `backend/.env` e configurar o Jiraya.
 
 ## Para o Jiraya configurar
 
@@ -17,7 +16,7 @@ Implementado e validado: contrato de leitura para o Jiraya ([docs/INTEGRACAO_JIR
 
 ## Estado técnico
 
-- Migrations: 0010 nova (não aplicada no instalado). Mudanças de modelo seguintes exigem 0011+.
+- Migrations: 0010 aplicada ao banco instalado em 23/10/2026. Mudanças de modelo seguintes exigem 0011+.
 - Validação: 161 testes Django/SQLite, 56 Conta Azul, 18 verificações PostgreSQL descartáveis (`backend/verificar_postgresql.py`, inclui 0010 na ida/volta). Telas conferidas no navegador em banco descartável.
 - Servidor local do usuário: aba "Servidor Manutec" com `manage.py runserver` em `http://127.0.0.1:8000/` (estava parado nesta sessão).
 
